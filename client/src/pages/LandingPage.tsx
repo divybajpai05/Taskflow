@@ -4,7 +4,7 @@ import Main from "../components/landingpage/Main";
 
 export default function LandingPage() {
   return (
-    <div className="bg-neutral-950 min-h-screen">
+    <div className="bg-neutral-950 min-h-screen flex flex-col">
       <Header />
       <Main />
       <Footer />

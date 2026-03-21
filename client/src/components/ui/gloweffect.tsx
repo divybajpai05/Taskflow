@@ -14,16 +14,16 @@ export function RadialGlow({
   opacity = "medium",
 }: RadialGlowProps) {
   const sizeClasses = {
-    sm: "w-64 h-64",
-    md: "w-96 h-96",
+    sm: "w-56 h-56",
+    md: "w-64 h-64",
     lg: "w-[32rem] h-[32rem]",
     xl: "w-[48rem] h-[48rem]",
   };
 
   const opacityClasses = {
-    light: "opacity-20",
-    medium: "opacity-40",
-    strong: "opacity-60",
+    light: "opacity-50",
+    medium: "opacity-80",
+    strong: "opacity-100",
   };
 
   const colorClasses = {
@@ -36,7 +36,7 @@ export function RadialGlow({
   return (
     <div
       className={cn(
-        "absolute rounded-full bg-gradient-radial blur-3xl",
+        "absolute rounded-full bg-radial",
         sizeClasses[size],
         colorClasses[color as keyof typeof colorClasses],
         opacityClasses[opacity],
