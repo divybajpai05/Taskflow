@@ -47,22 +47,23 @@ export default function Signin({
               <Label htmlFor="password">Password</Label>
               <Input id="password" name="password" required />
             </Field>
+            <Button
+              className="text-xs cursor-pointer underline self-end -mt-4 -mb-2 "
+              variant={"link"}
+            >
+              Forget password
+            </Button>
           </FieldGroup>
           <DialogFooter>
-            <div className="flex flex-row justify-between w-full">
-              <Button className="text-xs cursor-pointer underline" variant={"link"}>
-                Forget password
-              </Button>
-              <div className="flex flex-row gap-2">
-                <DialogClose asChild>
-                  <Button variant="outline" className="cursor-pointer">
-                    Cancel
-                  </Button>
-                </DialogClose>
-                <Button type="submit" className="cursor-pointer">
-                  Sign in
+            <div className="flex flex-col w-full gap-2">
+              <DialogClose asChild>
+                <Button variant="outline" className="cursor-pointer">
+                  Cancel
                 </Button>
-              </div>
+              </DialogClose>
+              <Button type="submit" className="cursor-pointer">
+                Sign in
+              </Button>
             </div>
           </DialogFooter>
           <div className="flex flex-row items-center justify-center">
