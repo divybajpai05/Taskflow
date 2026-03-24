@@ -37,7 +37,7 @@ export default function Signup({
           <DialogHeader>
             <DialogTitle className="text-lg">Create workspace</DialogTitle>
             <DialogDescription>
-              create you personal workspace and manage team and task
+              Create you personal workspace and manage team and task
               efficiently.
             </DialogDescription>
           </DialogHeader>
