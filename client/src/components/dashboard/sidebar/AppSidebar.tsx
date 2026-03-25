@@ -35,10 +35,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 
 const Application = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Overview", url: "/", icon: LayoutDashboard },
   { title: "My Tasks", url: "tasks", icon: NotebookText },
   { title: "Kanban board", url: "kanban", icon: KanbanSquare },
   { title: "Calender", url: "calender", icon: CalendarDays },
@@ -46,10 +45,10 @@ const Application = [
 ];
 
 const HrManagement = [
-  { title: "Hr Dashboard", url: "hr-dashboard", icon: LayoutDashboard },
-  { title: "Attendance", url: "addendance-management", icon: CalendarCheck },
+  { title: "HR Dashboard", url: "hr-dashboard", icon: LayoutDashboard },
+  { title: "Attendance", url: "attendance-management", icon: CalendarCheck },
   { title: "Leave Management", url: "leave-management", icon: UserMinus },
-  { title: "Hr Calendar", url: "hr-calendar", icon: CalendarDays },
+  { title: "HR Calendar", url: "hr-calendar", icon: CalendarDays },
   { title: "Email Center", url: "email-center", icon: Mail },
   { title: "Teams", url: "teams", icon: Users },
   { title: "User Management", url: "user-management", icon: UserCog },
@@ -62,7 +61,7 @@ const Admin = [
 
 export function AppSidebar() {
   return (
-    <Sidebar>
+    <Sidebar className="">
       <SidebarHeader className="" >
         <div className="flex flex-row items-center gap-1">
           <div className="flex aspect-square size-8 items-center justify-center">
@@ -99,7 +98,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Hr Management</SidebarGroupLabel>
+          <SidebarGroupLabel>HR Management</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {HrManagement.map((item) => (
@@ -142,7 +141,7 @@ export function AppSidebar() {
                 {/* Use SidebarMenuButton directly as the trigger */}
                 <SidebarMenuButton className="cursor-pointer data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
                     <User2 className="size-4" />
-                    <span className="font-medium">Username</span>
+                    <span className="font-medium">Prashant Thakur</span>
                   <ChevronUp className="ml-auto size-4" />{" "}
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
