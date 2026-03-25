@@ -44,6 +44,9 @@ const Application = [
   { title: "Analytics", url: "analytics", icon: ChartColumnBig },
 ];
 
+// Not present in sidebar, but in header of dashboardLayout. the purpose to this here for dashboardLayout header title.
+const Nofications = [{ title: "Notifications", url: "notifications" }];
+
 const HrManagement = [
   { title: "HR Dashboard", url: "hr-dashboard", icon: LayoutDashboard },
   { title: "Attendance", url: "attendance-management", icon: CalendarCheck },
@@ -59,10 +62,17 @@ const Admin = [
   { title: "Activity Logs", url: "activity", icon: Logs },
 ];
 
+export const allDashboardRoutes = [
+  ...Application,
+  ...HrManagement,
+  ...Admin,
+  ...Nofications,
+];
+
 export function AppSidebar() {
   return (
-    <Sidebar className="">
-      <SidebarHeader className="" >
+    <Sidebar className="h-full">
+      <SidebarHeader className="">
         <div className="flex flex-row items-center gap-1">
           <div className="flex aspect-square size-8 items-center justify-center">
             <img
@@ -140,8 +150,8 @@ export function AppSidebar() {
               <DropdownMenuTrigger asChild>
                 {/* Use SidebarMenuButton directly as the trigger */}
                 <SidebarMenuButton className="cursor-pointer data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
-                    <User2 className="size-4" />
-                    <span className="font-medium">Prashant Thakur</span>
+                  <User2 className="size-4" />
+                  <span className="font-medium">Prashant Thakur</span>
                   <ChevronUp className="ml-auto size-4" />{" "}
                 </SidebarMenuButton>
               </DropdownMenuTrigger>

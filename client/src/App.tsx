@@ -17,6 +17,7 @@ import TeamsManagement from "./components/dashboard/teams/Teams.tsx";
 import UserManagement from "./components/dashboard/user_management/User_Management.tsx";
 import WorkspaceManagement from "./components/dashboard/workspaces/Workspaces.tsx";
 import ActivityLogs from "./components/dashboard/activity_logs/Activity_Logs.tsx";
+import NotFound from "./components/dashboard/NotFound.tsx";
 
 const LandingPage = lazy(() => import("./pages/LandingPage.tsx"));
 const DashboardLayout = lazy(
@@ -55,8 +56,10 @@ export default function App() {
 
             {/* General Settings */}
             <Route path="settings" element={<Settings />} />
+            <Route path="*" element={<NotFound />} />
           </Route>
 
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
     </div>

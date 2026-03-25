@@ -1,5 +1,5 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "./sidebar/AppSidebar";
+import { allDashboardRoutes, AppSidebar } from "./sidebar/AppSidebar";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { Bell } from "lucide-react";
 
@@ -8,41 +8,46 @@ export default function DashboardLayout() {
 
   const notification = false;
 
-  const getPageTitle = (path: string) => {
-    const segments = path.split("/").filter(Boolean);
-    const lastSegment = segments[segments.length - 1] || "Dashboard";
+  const getPageTitle = (pathname: string) => {
+    
+    const cleanPath = pathname.replace(/\/$/, "");
 
-    return lastSegment
-      .split("-")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
+    const match = allDashboardRoutes.find((route) => {
+      if (route.url === "/") return cleanPath === "/dashboard";
+      return cleanPath.endsWith(route.url);
+    });
+
+    return match ? match.title : "Page Not Found";
   };
+
   return (
-    <SidebarProvider className="">
-      <AppSidebar />
-      <main className="w-full">
-        <div className="flex flex-row justify-between items-center p-4 pr-10 border-b">
-          <div className="flex flex-row items-center">
-            <SidebarTrigger className="cursor-pointer" />
-            <h1 className="ml-4 font-semibold">
-              {getPageTitle(location.pathname)}
-            </h1>
+    <SidebarProvider className="min-h-screen">
+      <div className="flex w-full">
+        <AppSidebar />
+        <main className="flex-1 flex flex-col">
+          <div className="flex flex-row justify-between items-center p-4 pr-10 border-b">
+            <div className="flex flex-row items-center">
+              <SidebarTrigger className="cursor-pointer" />
+              <h1 className="ml-4 sm:text-xl font-semibold">
+                {getPageTitle(location.pathname)}
+              </h1>
+            </div>
+            <div className="relative inline-flex items-center cursor-pointer">
+              <Link to={"/dashboard/notifications"}>
+                <Bell size={22} className="text-gray-600 " />
+              </Link>
+              {notification && (
+                <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white">
+                  21
+                </span>
+              )}
+            </div>
           </div>
-          <div className="relative inline-flex items-center cursor-pointer">
-            <Link to={"/dashboard/notifications"}>
-              <Bell size={22} className="text-gray-600 " />
-            </Link>
-            {notification && (
-              <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white">
-                21
-              </span>
-            )}
+          <div className="p-6">
+            <Outlet />
           </div>
-        </div>
-        <div className="p-6">
-          <Outlet />
-        </div>
-      </main>
+        </main>
+      </div>
     </SidebarProvider>
   );
 }
