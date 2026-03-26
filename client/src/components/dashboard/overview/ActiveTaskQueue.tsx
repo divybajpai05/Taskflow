@@ -100,7 +100,7 @@ export function ActiveTaskQueue() {
     <div className="rounded-md border bg-white shadow-sm overflow-hidden text-neutral-800">
       <div className="flex items-center justify-between p-4 border-b">
         <h3 className="font-semibold text-lg">Active Task Queue</h3>
-        <Link to={'/dashboard/tasks'} className="hover:underline text-blue-600 text-xs">View All Tasks → </Link>
+        <Link to={'/dashboard/tasks'} className="hover:underline text-blue-600 text-xs font-semibold">View All Tasks → </Link>
       </div>
 
       <Table>

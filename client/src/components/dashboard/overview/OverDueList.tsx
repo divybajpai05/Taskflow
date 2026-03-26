@@ -65,7 +65,7 @@ export default function OverDueList() {
   const displayedTasks = isExpanded ? DueTaskList : DueTaskList.slice(0, 3);
 
   return (
-    <div className="flex flex-col border rounded-xl text-neutral-800 overflow-hidden bg-white shadow-md border-red-100">
+    <div className="flex flex-col border rounded-xl text-neutral-800 overflow-hidden bg-white border-red-100">
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-red-50/40 border-b">
         <div className="flex items-center gap-2">
@@ -142,7 +142,7 @@ export default function OverDueList() {
       {DueTaskList.length > 3 && (
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="cursor-pointer w-full p-3 text-xs font-bold text-slate-600 bg-slate-50/50 hover:bg-slate-100 border-t flex items-center justify-center gap-1 transition-all"
+          className="cursor-pointer w-full p-3 text-xs font-semibold text-blue-600 bg-slate-50/50 hover:bg-slate-100 border-t flex items-center justify-center gap-1 transition-all"
         >
           {isExpanded ? (
             <>

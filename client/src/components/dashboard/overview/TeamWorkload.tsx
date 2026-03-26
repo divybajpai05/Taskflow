@@ -26,7 +26,7 @@ const TeamData = [
 
 export function TeamWorkload() {
   return (
-    <Card className="shadow-md border-none bg-white/50 backdrop-blur-sm text-neutral-800">
+    <Card className="border-none bg-white/50 backdrop-blur-sm text-neutral-800">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-semibold flex items-center gap-2">
           Team Workload

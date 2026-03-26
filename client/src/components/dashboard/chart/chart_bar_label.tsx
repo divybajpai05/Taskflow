@@ -21,6 +21,7 @@ import {
 export const description = "A bar chart with a label";
 
 const chartData = [
+  { priority: "Urgent", value: 100, fill: "#b91c1c" },
   { priority: "High", value: 186, fill: "#dc2626" },
   { priority: "Medium", value: 305, fill: "#eab308" },
   { priority: "Low", value: 237, fill: "#16a34a" },
@@ -34,13 +35,13 @@ const chartConfig = {
 
 export function ChartBarLabel() {
   return (
-    <Card>
+    <Card className="">
       <CardHeader>
         <CardTitle>Priority Breakdown</CardTitle>
         <CardDescription></CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig}>
+        <ChartContainer config={chartConfig} >
           <BarChart
             accessibilityLayer
             data={chartData}
