@@ -6,7 +6,7 @@ import { Bell } from "lucide-react";
 export default function DashboardLayout() {
   const location = useLocation();
 
-  const notification = false;
+  const notification = true;
 
   const getPageTitle = (pathname: string) => {
     

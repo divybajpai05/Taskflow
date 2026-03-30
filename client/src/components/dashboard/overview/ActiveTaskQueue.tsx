@@ -11,8 +11,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { statusColors } from "@/types/types";
+// import type { statusColors } from "@/types/types";
 import { Link } from "react-router-dom";
+import type { Priority, Status } from "@/types/types";
 
 const tasks = [
   {
@@ -73,19 +74,17 @@ const tasks = [
   },
 ];
 
-type Status = "Todo" | "Done" | "In progress" | "Cancelled" | "On Hold";
 
-const statusColors: Record<Status, string> = {
-  Todo: "bg-slate-300",
+export const StatusColors: Record<Status, string> = {
+  Todo: "bg-slate-300 ",
   "In progress": "bg-blue-500",
   Done: "bg-green-500",
   Cancelled: "bg-red-500",
   "On Hold": "bg-black",
 };
 
-type Priority = "Low" | "Medium" | "High" | "Urgent";
 
-const priorityColors: Record<Priority, string> = {
+export const priorityColors: Record<Priority, string> = {
   Low: "text-emerald-500 border-emerald-200 bg-emerald-50",
   Medium: "text-yellow-600 border-yellow-200 bg-yellow-50",
   High: "text-red-400 border-red-200 bg-red-50 animate-pulse", // Light Red
@@ -147,7 +146,7 @@ export function ActiveTaskQueue() {
                   <div className="flex items-center gap-2">
                     <span
                       className={`h-2 w-2 rounded-full ${
-                        statusColors[task.status as keyof typeof statusColors]
+                        StatusColors[task.status as keyof typeof StatusColors]
                       }`}
                     />
                     <span className="text-sm">{task.status}</span>

@@ -23,7 +23,9 @@ export const description = "A pie chart with a label list";
 const chartData = [
   { tasks: "Todo", value: 10, fill: "#eab308" },
   { tasks: "Done", value: 30, fill: "#16a34a" },
-  { tasks: "Progress", value: 50, fill: "#1e40af" },
+  { tasks: "In progress", value: 50, fill: "#1e40af" },
+  { tasks: "Cancelled", value: 50, fill: "#dc2626" },
+  { tasks: "On Hold", value: 50, fill: "#0a0a0a" },
 ];
 
 const chartConfig = {
@@ -32,17 +34,21 @@ const chartConfig = {
   },
   Todo: {
     label: "Todo",
-    color: "#eab308",
   },
 
   Done: {
     label: "Done",
-    color: "#22c55e",
   },
 
-  Progress: {
-    label: "Progress",
-    color: "#1e40af",
+  "In progress": {
+    label: "In progress",
+  },
+
+  Cancelled: {
+    label: "Cancelled",
+  },
+  "On Hold": {
+    label: "On Hold",
   },
 } satisfies ChartConfig;
 

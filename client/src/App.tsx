@@ -6,7 +6,6 @@ import Settings from "./components/dashboard/setting/Settings.tsx";
 import Mytasks from "./components/dashboard/mytask/Mytasks.tsx";
 import Notifications from "./components/dashboard/notifications/Notification.tsx";
 import KanbanBoard from "./components/dashboard/kanban/KanbanBoard.tsx";
-import Calendar from "./components/dashboard/calendar/Calendar.tsx";
 import AnalyticsReport from "./components/dashboard/analytics/Analytics.tsx";
 import HrDashboard from "./components/dashboard/hr_dashboard/Hr_Dashboard.tsx";
 import Attendance from "./components/dashboard/attendance/Attendance.tsx";
@@ -18,6 +17,7 @@ import UserManagement from "./components/dashboard/user_management/User_Manageme
 import WorkspaceManagement from "./components/dashboard/workspaces/Workspaces.tsx";
 import ActivityLogs from "./components/dashboard/activity_logs/Activity_Logs.tsx";
 import NotFound from "./components/dashboard/NotFound.tsx";
+import TaskFlowCalendar from "./components/dashboard/calendar/Calendar.tsx";
 
 const LandingPage = lazy(() => import("./pages/LandingPage.tsx"));
 const DashboardLayout = lazy(
@@ -37,7 +37,7 @@ export default function App() {
             {/* Application Section */}
             <Route path="tasks" element={<Mytasks />} />
             <Route path="kanban" element={<KanbanBoard />} />
-            <Route path="calender" element={<Calendar />} />
+            <Route path="calender" element={<TaskFlowCalendar />} />
             <Route path="analytics" element={<AnalyticsReport />} />
             <Route path="notifications" element={<Notifications />} />
 

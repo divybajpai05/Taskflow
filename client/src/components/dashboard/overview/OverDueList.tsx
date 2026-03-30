@@ -65,11 +65,11 @@ export default function OverDueList() {
   const displayedTasks = isExpanded ? DueTaskList : DueTaskList.slice(0, 3);
 
   return (
-    <div className="flex flex-col border rounded-xl text-neutral-800 overflow-hidden bg-white border-red-100">
+    <div className="flex flex-col border rounded-xl text-neutral-800 overflow-hidden bg-white">
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-red-50/40 border-b">
         <div className="flex items-center gap-2">
-          <div className="bg-red-100 p-1.5 rounded-lg">
+          <div className="rounded-lg">
             <AlertCircle className="w-5 h-5 text-red-600" />
           </div>
           <div>
