@@ -29,11 +29,11 @@ const convertToFullCalendarDate = (dueDate: string): string => {
 };
 
 const statusColors: Record<string, string> = {
-  "To Do": "#6b7280",
-  "In Progress": "#3b82f6",
-  Review: "#eab308",
+  Todo: "#6b7280",
+  "In progress": "#3b82f6", // ← Changed to match your data
   Done: "#22c55e",
-  Cancelled: "#ef4444", // Added for your "Cancelled" status
+  Cancelled: "#ef4444",
+  "On Hold": "#eab308", // Added
 };
 
 const priorityBorderColors: Record<string, string> = {
@@ -92,7 +92,9 @@ export default function TaskFlowCalendar({
 
   const handleEventDrop = useCallback(
     (info: EventDropArg) => {
-      const newDate = info.event.startStr.split("T")[0];
+      if (!info.event.start) return;
+
+      const newDate = info.event.startStr.split("T")[0]; // YYYY-MM-DD
       onTaskDrop(info.event.id, newDate);
     },
     [onTaskDrop],

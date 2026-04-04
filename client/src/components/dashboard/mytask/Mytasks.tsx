@@ -20,7 +20,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Info, Edit2, Trash2, X } from "lucide-react";
+import { Info, Edit2, Trash2, X, Plus } from "lucide-react";
 import { AddTaskModal } from "./AddTaskModal";
 import { useMemo, useState } from "react";
 import { priorityColors } from "../overview/ActiveTaskQueue";
@@ -95,6 +95,7 @@ export default function TaskTable() {
   const [taskList, setTaskList] = useState<Task[]>(initialTasks);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // ==================== FILTER STATES ====================
   const [searchTerm, setSearchTerm] = useState("");
@@ -151,10 +152,17 @@ export default function TaskTable() {
       prev.map((task) => (task.id === updatedTask.id ? updatedTask : task)),
     );
     setEditingTask(null);
+    setIsModalOpen(false); // close modal
   };
 
   const handleCloseEdit = () => {
     setEditingTask(null);
+    setIsModalOpen(false);
+  };
+
+  const handleEditClick = (task: Task) => {
+    setEditingTask(task);
+    setIsModalOpen(true); // ← This opens the modal
   };
 
   const handleDelete = (id: string) => {
@@ -195,11 +203,25 @@ export default function TaskTable() {
                 {filteredTasks.length} of {taskList.length}
               </Badge>
             </div>
+
+            <Button
+              onClick={() => {
+                setEditingTask(null);
+                setIsModalOpen(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 cursor-pointer"
+            >
+              <Plus className="w-4 h-4 mr-1" /> New Task
+            </Button>
+
+            {/* Modal - No longer needs DialogTrigger */}
             <AddTaskModal
               onAddTask={handleAddTask}
               onEditTask={handleSaveEdit}
               editingTask={editingTask}
               onCloseEdit={handleCloseEdit}
+              open={isModalOpen}
+              onOpenChange={setIsModalOpen}
             />
           </div>
 
@@ -462,7 +484,7 @@ export default function TaskTable() {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
-                            onClick={() => setEditingTask(task)}
+                            onClick={() => handleEditClick(task)}
                             className="cursor-pointer p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                           >
                             <Edit2 className="h-4 w-4" />
@@ -505,7 +527,9 @@ export default function TaskTable() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="cursor-pointer">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => taskToDelete && handleDelete(taskToDelete)}
               className="bg-red-600 hover:bg-red-700 cursor-pointer"

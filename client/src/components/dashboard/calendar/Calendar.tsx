@@ -1,7 +1,7 @@
 import { useState } from "react";
 import TaskFlowCalendar from "./TaskFlowCalender";
 import { AddTaskModal } from "../mytask/AddTaskModal";
-import { TaskDetailModal } from "../kanban/TaskDetailModal"; // ← Adjust path if needed
+import { TaskDetailModal } from "../kanban/TaskDetailModal";
 import type { Task } from "@/types/types";
 import { initialTasks } from "../mytask/Mytasks";
 import { toast } from "sonner";
@@ -15,15 +15,17 @@ export default function Calendar() {
   );
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
-  // New state for Task Detail Modal
   const [detailOpen, setDetailOpen] = useState(false);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
 
   // ================== Calendar Handlers ==================
 
   const handleTaskDrop = (taskId: string, newDueDate: string) => {
+    // newDueDate comes as YYYY-MM-DD from FullCalendar → convert to DD/MM/YY
+    const formattedDate = convertToDDMMYY(newDueDate);
+
     setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, dueDate: newDueDate } : t)),
+      prev.map((t) => (t.id === taskId ? { ...t, dueDate: formattedDate } : t)),
     );
   };
 
@@ -36,6 +38,7 @@ export default function Calendar() {
   };
 
   const handleDateClick = (date: string) => {
+    // date comes as YYYY-MM-DD
     const clickedDate = new Date(date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -47,7 +50,10 @@ export default function Calendar() {
       return;
     }
 
-    setInitialDueDate(date);
+    // Convert YYYY-MM-DD to DD/MM/YY for the modal
+    const formattedForModal = convertToDDMMYY(date);
+
+    setInitialDueDate(formattedForModal);
     setEditingTask(null);
     setModalOpen(true);
   };
@@ -55,7 +61,7 @@ export default function Calendar() {
   // ================== Modal Handlers ==================
 
   const handleAddTask = (newTask: Task) => {
-    setTasks((prev) => [...prev, newTask]);
+    setTasks((prev) => [newTask, ...prev]); // newest on top
   };
 
   const handleEditTask = (updatedTask: Task) => {
@@ -63,6 +69,7 @@ export default function Calendar() {
       prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
     );
     setEditingTask(null);
+    setModalOpen(false); // Important: close modal after edit
   };
 
   const handleCreateModalClose = (open: boolean) => {
@@ -81,7 +88,7 @@ export default function Calendar() {
   const handleEditFromDetail = (task: Task) => {
     setEditingTask(task);
     setDetailOpen(false);
-    setModalOpen(true); // Open edit modal
+    setModalOpen(true);
   };
 
   return (
@@ -93,7 +100,6 @@ export default function Calendar() {
         onDateClick={handleDateClick}
       />
 
-      {/* Create / Edit Modal */}
       <AddTaskModal
         open={modalOpen}
         onOpenChange={handleCreateModalClose}
@@ -101,10 +107,12 @@ export default function Calendar() {
         onAddTask={handleAddTask}
         onEditTask={handleEditTask}
         editingTask={editingTask}
-        onCloseEdit={() => setEditingTask(null)}
+        onCloseEdit={() => {
+          setEditingTask(null);
+          setModalOpen(false);
+        }}
       />
 
-      {/* Task Detail Modal - Using your existing component */}
       <TaskDetailModal
         task={viewingTask}
         open={detailOpen}
@@ -114,3 +122,12 @@ export default function Calendar() {
     </>
   );
 }
+
+// Helper function: YYYY-MM-DD → DD/MM/YY
+const convertToDDMMYY = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear()).slice(2); // 2026 → 26
+  return `${day}/${month}/${year}`;
+};

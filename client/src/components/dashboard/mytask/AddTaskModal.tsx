@@ -41,6 +41,7 @@ const teamMembers = {
   Admin: ["Suresh"],
 };
 
+// Due date is NOT required in schema anymore - we handle default in onSubmit
 const formSchema = z.object({
   title: z.string().min(2, { message: "Task title is required" }),
   description: z.string().optional(),
@@ -50,7 +51,7 @@ const formSchema = z.object({
   selectMember: z
     .array(z.string())
     .min(1, { message: "At least one member is required" }),
-  dueDate: z.string(),
+  dueDate: z.string(), // ← Removed .min(1)
 });
 
 export function AddTaskModal({
@@ -101,15 +102,7 @@ export function AddTaskModal({
 
   // Pre-fill logic
   useEffect(() => {
-    if (initialDueDate && open && !editingTask) {
-      setValue("dueDate", initialDueDate);
-      const parsedDate = new Date(initialDueDate);
-      if (!isNaN(parsedDate.getTime())) {
-        setDate(parsedDate);
-      }
-    }
-
-    if (editingTask) {
+    if (editingTask && open) {
       reset({
         title: editingTask.title,
         description: editingTask.description || "",
@@ -122,14 +115,42 @@ export function AddTaskModal({
 
       const [day, month, year] = editingTask.dueDate.split("/").map(Number);
       const parsedDate = new Date(2000 + year, month - 1, day);
-      setDate(parsedDate);
+      if (!isNaN(parsedDate.getTime())) setDate(parsedDate);
+    } else if (initialDueDate && open && !editingTask) {
+      setValue("dueDate", initialDueDate);
+      const [day, month, year] = initialDueDate.split("/").map(Number);
+      const parsedDate = new Date(2000 + year, month - 1, day);
+      if (!isNaN(parsedDate.getTime())) setDate(parsedDate);
+    } else if (open && !editingTask && !initialDueDate) {
+      reset({
+        title: "",
+        description: "",
+        priority: "Medium",
+        status: "Todo",
+        selectTeam: "",
+        selectMember: [],
+        dueDate: "",
+      });
+      setDate(new Date());
     }
-  }, [initialDueDate, editingTask, open, reset, setValue]);
+  }, [open, editingTask, initialDueDate, reset, setValue]);
 
   const handleOpenChange = (newOpen: boolean) => {
     onOpenChange(newOpen);
-    if (!newOpen && editingTask && onCloseEdit) {
-      onCloseEdit();
+
+    if (!newOpen) {
+      reset({
+        title: "",
+        description: "",
+        priority: "Medium",
+        status: "Todo",
+        selectTeam: "",
+        selectMember: [],
+        dueDate: "",
+      });
+      setDate(new Date());
+
+      if (editingTask && onCloseEdit) onCloseEdit();
     }
   };
 
@@ -144,24 +165,35 @@ export function AddTaskModal({
   const handleDateSelect = (selectedDate: Date | undefined) => {
     if (selectedDate) {
       setDate(selectedDate);
-      setValue(
-        "dueDate",
-        selectedDate.toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "2-digit",
-        }),
-      );
+      const formattedDate = selectedDate.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+      });
+      setValue("dueDate", formattedDate, { shouldValidate: true });
     }
   };
 
+  // ==================== MAIN FIX ====================
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     const initials = values.selectMember
       .map((m) => m[0].toUpperCase())
       .join(", ");
 
+    // If no due date was selected (for new tasks), use today's date
+    let finalDueDate = values.dueDate;
+    if (!finalDueDate && !isEditing) {
+      const today = new Date();
+      finalDueDate = today.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+      });
+    }
+
     const taskData: Task = {
       ...values,
+      dueDate: finalDueDate,
       id: isEditing && editingTask ? editingTask.id : Date.now().toString(),
       initials,
     };
@@ -173,22 +205,10 @@ export function AddTaskModal({
     }
 
     onOpenChange(false);
-    reset();
-    setDate(new Date());
-    if (onCloseEdit) onCloseEdit();
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      {/* Show New Task button only in uncontrolled mode (e.g. Kanban) */}
-      {!controlledOpen && !controlledOnOpenChange && (
-        <DialogTrigger asChild>
-          <Button className="bg-blue-600 hover:bg-blue-700 cursor-pointer">
-            <Plus className="w-4 h-4 mr-1" /> New Task
-          </Button>
-        </DialogTrigger>
-      )}
-
       <DialogContent className="sm:max-w-112.5 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -248,7 +268,7 @@ export function AddTaskModal({
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
-                  {["Todo", "In Progress", "Done", "On Hold", "Cancelled"].map(
+                  {["Todo", "In progress", "Done", "On Hold", "Cancelled"].map(
                     (s) => (
                       <SelectItem key={s} value={s}>
                         {s}
@@ -384,6 +404,7 @@ export function AddTaskModal({
                 />
               </PopoverContent>
             </Popover>
+            {/* No error message needed anymore since we provide default */}
           </Field>
 
           <Button
