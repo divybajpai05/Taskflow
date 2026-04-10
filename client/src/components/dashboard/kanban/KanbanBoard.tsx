@@ -6,7 +6,6 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import type { DragEndEvent } from "@dnd-kit/core";
 import type { DragOverEvent } from "@dnd-kit/core";
 import type { Task } from "@/types/types";
 import { initialTasks } from "../mytask/Mytasks";
@@ -14,12 +13,20 @@ import { AddTaskModal } from "../mytask/AddTaskModal";
 import { KanbanColumn } from "./KanbanColumn";
 import { StatusColors } from "../overview/ActiveTaskQueue";
 import { TaskDetailModal } from "./TaskDetailModal";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 
 const statuses = [
   "Todo",
-  "In Progress",
+  "In progress",
   "On Hold",
   "Done",
   "Cancelled",
@@ -33,6 +40,7 @@ export default function KanbanBoard() {
   const [selectedTaskForDetail, setSelectedTaskForDetail] =
     useState<Task | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false); // ← New state
 
   const groupedTasks = useMemo(() => {
     const filtered = taskList.filter((task) => {
@@ -63,35 +71,28 @@ export default function KanbanBoard() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
-  // Fixed Drag Over Handler with unique IDs
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
     const activeId = String(active.id);
-    const overId = String(over.id); // This will now be "team-status" format
+    const overId = String(over.id);
+    const newStatus = overId.split("-").pop() || "";
 
     setTaskList((prevTasks) => {
       const activeTaskIndex = prevTasks.findIndex((t) => t.id === activeId);
       if (activeTaskIndex === -1) return prevTasks;
 
       const activeTask = prevTasks[activeTaskIndex];
-
-      // Extract status from overId (format: "TeamName-Status")
-      const newStatus = overId.split("-").pop() || activeTask.status;
-
       if (activeTask.status === newStatus) return prevTasks;
 
       const updatedTasks = [...prevTasks];
-      updatedTasks[activeTaskIndex] = { ...activeTask, status: newStatus };
-
+      updatedTasks[activeTaskIndex] = {
+        ...activeTask,
+        status: newStatus as any,
+      };
       return updatedTasks;
     });
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
   };
 
   const handleAddTask = (newTask: Task) => {
@@ -103,9 +104,19 @@ export default function KanbanBoard() {
       prev.map((task) => (task.id === updatedTask.id ? updatedTask : task)),
     );
     setEditingTask(null);
+    setIsModalOpen(false); // ← Close modal after edit
   };
 
-  const handleCloseEdit = () => setEditingTask(null);
+  const handleCloseEdit = () => {
+    setEditingTask(null);
+    setIsModalOpen(false);
+  };
+
+  const handleEditFromDetail = (task: Task) => {
+    setSelectedTaskForDetail(null);
+    setEditingTask(task);
+    setIsModalOpen(true); // ← Open modal for editing
+  };
 
   return (
     <div className="min-h-screen">
@@ -137,21 +148,38 @@ export default function KanbanBoard() {
             </SelectContent>
           </Select>
 
+          {/* New Task Button */}
+          <Button
+            onClick={() => {
+              setEditingTask(null);
+              setIsModalOpen(true);
+            }}
+            className="bg-blue-600 hover:bg-blue-700 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 mr-1" /> New Task
+          </Button>
+
+          {/* Controlled AddTaskModal */}
           <AddTaskModal
             onAddTask={handleAddTask}
             onEditTask={handleSaveEdit}
             editingTask={editingTask}
             onCloseEdit={handleCloseEdit}
+            open={isModalOpen}
+            onOpenChange={setIsModalOpen}
           />
         </div>
       </div>
+
+      {/* ... rest of your DndContext and columns remain the same ... */}
 
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
+        onDragEnd={() => {}} // You can keep it empty or implement if needed
       >
+        {/* Your existing columns rendering */}
         <div className="space-y-4">
           {teams.length === 0 ? (
             <div className="text-center py-20 text-slate-500">
@@ -174,11 +202,9 @@ export default function KanbanBoard() {
                     </div>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 p-4 overflow-x-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 overflow-x-auto">
                   {statuses.map((status) => {
                     const columnTasks = groupedTasks[team]?.[status] || [];
-
                     return (
                       <KanbanColumn
                         key={`${team}-${status}`}
@@ -204,12 +230,8 @@ export default function KanbanBoard() {
         task={selectedTaskForDetail}
         open={!!selectedTaskForDetail}
         onClose={() => setSelectedTaskForDetail(null)}
-        onEdit={(task) => {
-          setSelectedTaskForDetail(null);
-          setEditingTask(task);
-        }}
+        onEdit={handleEditFromDetail} // ← Updated to use new handler
       />
-
     </div>
   );
 }

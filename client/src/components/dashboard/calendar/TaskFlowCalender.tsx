@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from "react";
+import { useRef, useCallback } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
@@ -30,10 +30,10 @@ const convertToFullCalendarDate = (dueDate: string): string => {
 
 const statusColors: Record<string, string> = {
   Todo: "#6b7280",
-  "In progress": "#3b82f6", // ← Changed to match your data
+  "In progress": "#3b82f6",
   Done: "#22c55e",
   Cancelled: "#ef4444",
-  "On Hold": "#eab308", // Added
+  "On Hold": "#eab308",
 };
 
 const priorityBorderColors: Record<string, string> = {

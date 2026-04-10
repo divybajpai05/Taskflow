@@ -7,7 +7,7 @@ import Mytasks from "./components/dashboard/mytask/Mytasks.tsx";
 import Notifications from "./components/dashboard/notifications/Notification.tsx";
 import KanbanBoard from "./components/dashboard/kanban/KanbanBoard.tsx";
 import AnalyticsReport from "./components/dashboard/analytics/Analytics.tsx";
-import HrDashboard from "./components/dashboard/hr_dashboard/Hr_Dashboard.tsx";
+import HRDashboard from "./components/dashboard/hr_dashboard/HRDashboard.tsx";
 import Attendance from "./components/dashboard/attendance/Attendance.tsx";
 import LeaveManagement from "./components/dashboard/leave_management/Leave_Management.tsx";
 import HrCalendar from "./components/dashboard/hr_calender/Hr_Calendar.tsx";
@@ -42,7 +42,7 @@ export default function App() {
             <Route path="notifications" element={<Notifications />} />
 
             {/* HR Management Section */}
-            <Route path="hr-dashboard" element={<HrDashboard />} />
+            <Route path="hr-dashboard" element={<HRDashboard />} />
             <Route path="attendance-management" element={<Attendance />} />
             <Route path="leave-management" element={<LeaveManagement />} />
             <Route path="hr-calendar" element={<HrCalendar />} />

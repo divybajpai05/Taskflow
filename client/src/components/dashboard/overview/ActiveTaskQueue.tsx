@@ -74,7 +74,6 @@ const tasks = [
   },
 ];
 
-
 export const StatusColors: Record<Status, string> = {
   Todo: "bg-slate-300 ",
   "In progress": "bg-blue-500",
@@ -83,12 +82,11 @@ export const StatusColors: Record<Status, string> = {
   "On Hold": "bg-black",
 };
 
-
 export const priorityColors: Record<Priority, string> = {
   Low: "text-emerald-500 border-emerald-200 bg-emerald-50",
   Medium: "text-yellow-600 border-yellow-200 bg-yellow-50",
-  High: "text-red-400 border-red-200 bg-red-50 animate-pulse", // Light Red
-  Urgent: "text-red-700 border-red-400 bg-red-100 animate-pulse", // Dark Red
+  High: "text-red-400 border-red-200 bg-red-50 animate-pulse",
+  Urgent: "text-red-700 border-red-400 bg-red-100 animate-pulse",
 };
 
 export function ActiveTaskQueue() {
@@ -98,8 +96,16 @@ export function ActiveTaskQueue() {
   return (
     <div className="rounded-md border bg-white shadow-sm overflow-hidden text-neutral-800">
       <div className="flex items-center justify-between p-4 border-b">
-        <h3 className="font-semibold text-lg">Active Task Queue</h3>
-        <Link to={'/dashboard/tasks'} className="hover:underline text-blue-600 text-xs font-semibold">View All Tasks → </Link>
+        <div className="flex flex-row gap-2 items-center">
+          <h3 className="font-semibold text-lg">Active Task Queue</h3>
+          <span className="text-blue-600 font-bold">{`(${tasks.length})`}</span>
+        </div>
+        <Link
+          to={"/dashboard/tasks"}
+          className="hover:underline text-blue-600 text-xs font-semibold"
+        >
+          View All Tasks →{" "}
+        </Link>
       </div>
 
       <Table>
