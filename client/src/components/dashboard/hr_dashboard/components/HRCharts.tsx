@@ -20,70 +20,43 @@ import {
 interface HRChartsProps {
   dateRange: { from: Date; to: Date };
   selectedDepartment: string;
-  selectedStatus: string;
 }
 
-const departmentColors = {
-  Engineering: "#3b82f6",
-  Design: "#8b5cf6",
-  Marketing: "#ec4899",
-  Sales: "#f59e0b",
-  HR: "#10b981",
-  Finance: "#ef4444",
-};
-
-const leaveTypeColors = {
-  Vacation: "#22c55e",
-  Sick: "#ef4444",
-  Personal: "#eab308",
-  Maternity: "#8b5cf6",
-};
-
-const HRCharts: React.FC<HRChartsProps> = ({
-  dateRange,
-  selectedDepartment,
-  selectedStatus,
-}) => {
+const HRCharts: React.FC<HRChartsProps> = ({ selectedDepartment }) => {
   const deptMultiplier = selectedDepartment === "all" ? 1 : 0.75;
 
-  // Department Breakdown Data
   const departmentData = useMemo(
     () => [
       {
         name: "Engineering",
         value: Math.floor(385 * deptMultiplier),
-        color: departmentColors.Engineering,
+        color: "#3b82f6",
       },
       {
         name: "Design",
         value: Math.floor(124 * deptMultiplier),
-        color: departmentColors.Design,
+        color: "#8b5cf6",
       },
       {
         name: "Marketing",
         value: Math.floor(98 * deptMultiplier),
-        color: departmentColors.Marketing,
+        color: "#ec4899",
       },
       {
         name: "Sales",
         value: Math.floor(156 * deptMultiplier),
-        color: departmentColors.Sales,
+        color: "#f59e0b",
       },
-      {
-        name: "HR",
-        value: Math.floor(67 * deptMultiplier),
-        color: departmentColors.HR,
-      },
+      { name: "HR", value: Math.floor(67 * deptMultiplier), color: "#10b981" },
       {
         name: "Finance",
         value: Math.floor(89 * deptMultiplier),
-        color: departmentColors.Finance,
+        color: "#ef4444",
       },
     ],
     [deptMultiplier],
   );
 
-  // Attendance Trend (Last 10 days)
   const attendanceTrend = useMemo(
     () => [
       { date: "Mar 8", attendance: 94 },
@@ -100,34 +73,28 @@ const HRCharts: React.FC<HRChartsProps> = ({
     [],
   );
 
-  // Leave Trends by Type
   const leaveTrendData = useMemo(
     () => [
       {
         name: "Vacation",
         count: Math.floor(124 * deptMultiplier),
-        fill: leaveTypeColors.Vacation,
+        fill: "#22c55e",
       },
-      {
-        name: "Sick",
-        count: Math.floor(67 * deptMultiplier),
-        fill: leaveTypeColors.Sick,
-      },
+      { name: "Sick", count: Math.floor(67 * deptMultiplier), fill: "#ef4444" },
       {
         name: "Personal",
         count: Math.floor(45 * deptMultiplier),
-        fill: leaveTypeColors.Personal,
+        fill: "#eab308",
       },
       {
         name: "Maternity",
         count: Math.floor(12 * deptMultiplier),
-        fill: leaveTypeColors.Maternity,
+        fill: "#8b5cf6",
       },
     ],
     [deptMultiplier],
   );
 
-  // Recruitment Pipeline
   const recruitmentData = useMemo(
     () => [
       { stage: "Applied", count: 342, fill: "#64748b" },
@@ -139,19 +106,10 @@ const HRCharts: React.FC<HRChartsProps> = ({
     [],
   );
 
-  // Top Performers (for a simple list card)
-  const topPerformers = [
-    { name: "Ananya Sharma", dept: "Engineering", rating: 4.9, avatar: "👩‍💻" },
-    { name: "Rohan Mehta", dept: "Design", rating: 4.8, avatar: "👨‍🎨" },
-    { name: "Priya Kapoor", dept: "Marketing", rating: 4.7, avatar: "👩‍💼" },
-    { name: "Arjun Rao", dept: "Sales", rating: 4.9, avatar: "👨‍💼" },
-    { name: "Sneha Verma", dept: "HR", rating: 4.6, avatar: "👩‍💼" },
-  ];
-
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       {/* Department Breakdown */}
-      <Card className="col-span-1">
+      <Card>
         <CardHeader>
           <CardTitle>Department Breakdown</CardTitle>
           <p className="text-sm text-muted-foreground">
@@ -169,7 +127,6 @@ const HRCharts: React.FC<HRChartsProps> = ({
                   innerRadius={75}
                   outerRadius={120}
                   dataKey="value"
-                  isAnimationActive={false}
                 >
                   {departmentData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -210,7 +167,6 @@ const HRCharts: React.FC<HRChartsProps> = ({
                   stroke="#22c55e"
                   strokeWidth={4}
                   dot={{ r: 5, fill: "#22c55e" }}
-                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -234,7 +190,7 @@ const HRCharts: React.FC<HRChartsProps> = ({
                 <XAxis type="number" />
                 <YAxis dataKey="name" type="category" width={90} />
                 <Tooltip />
-                <Bar dataKey="count" radius={6} isAnimationActive={false}>
+                <Bar dataKey="count" radius={6}>
                   {leaveTrendData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
@@ -259,7 +215,7 @@ const HRCharts: React.FC<HRChartsProps> = ({
                 <XAxis type="number" />
                 <YAxis dataKey="stage" type="category" width={100} />
                 <Tooltip />
-                <Bar dataKey="count" radius={6} isAnimationActive={false}>
+                <Bar dataKey="count" radius={6}>
                   {recruitmentData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
@@ -269,36 +225,6 @@ const HRCharts: React.FC<HRChartsProps> = ({
           </div>
         </CardContent>
       </Card>
-
-      {/* Top Performers */}
-      {/* <Card className="lg:col-span-2">
-        <CardHeader>
-          <CardTitle>Top Performers</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            This quarter • Based on performance score
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {topPerformers.map((person, index) => (
-              <div
-                key={index}
-                className="flex flex-col items-center p-4 border rounded-xl hover:shadow-sm transition-all"
-              >
-                <div className="text-4xl mb-3">{person.avatar}</div>
-                <div className="font-semibold text-center">{person.name}</div>
-                <div className="text-sm text-muted-foreground text-center">
-                  {person.dept}
-                </div>
-                <div className="mt-2 flex items-center gap-1">
-                  <span className="font-bold text-lg">{person.rating}</span>
-                  <span className="text-amber-500">★</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card> */}
     </div>
   );
 };

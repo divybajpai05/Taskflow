@@ -1,136 +1,119 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Users,
   UserCheck,
-  BriefcaseBusiness,
-  Plane,
   UserMinus,
-  XCircle,
   CheckCircle,
+  XCircle,
+  TrendingUp,
 } from "lucide-react";
 
 interface HRKPICardsProps {
   dateRange: { from: Date; to: Date };
   selectedDepartment: string;
-  selectedStatus: string;
+}
+
+// Shape of data coming from backend (only numbers)
+interface HRKPIResponse {
+  totalEmployees: number;
+  activeEmployees: number;
+  onLeave: number;
+  presentToday: number;
+  absentToday: number;
+  newHiresThisMonth: number;
 }
 
 const HRKPICards: React.FC<HRKPICardsProps> = ({
   dateRange,
   selectedDepartment,
-  selectedStatus,
 }) => {
-  // Mock data with slight variations based on filters (for realism)
-  const multiplier = selectedDepartment === "all" ? 1 : 0.85;
+  // Mock data simulating backend response
+  const kpiNumbers: HRKPIResponse = useMemo(() => {
+    const multiplier = selectedDepartment === "all" ? 1 : 0.85;
 
-  const kpiData = {
-    totalEmployees: Math.floor(1248 * multiplier),
-    activeEmployees: Math.floor(1189 * multiplier),
-    onLeave: Math.floor(42 * (selectedStatus === "onleave" ? 1.8 : 1)),
-    presentToday: Math.floor(28 * multiplier),
-    AbsentToday: 19,
-  };
+    return {
+      totalEmployees: Math.floor(1248 * multiplier),
+      activeEmployees: Math.floor(1189 * multiplier),
+      onLeave: Math.floor(42),
+      presentToday: Math.floor(1124 * multiplier),
+      absentToday: Math.floor(67 * multiplier),
+      newHiresThisMonth: Math.floor(28 * multiplier),
+    };
+  }, [selectedDepartment]);
 
-  const trendColors = {
-    positive: "text-green-600",
-    neutral: "text-muted-foreground",
-  };
+  // Frontend configuration
+  const kpiConfig = [
+    {
+      key: "totalEmployees" as const,
+      title: "Total Employees",
+      icon: <Users className="h-5 w-5 text-muted-foreground" />,
+      subtitle: "+12 from last month",
+    },
+    {
+      key: "activeEmployees" as const,
+      title: "Active Employees",
+      icon: <UserCheck className="h-5 w-5 text-green-600" />,
+      valueColor: "text-blue-600",
+    },
+    {
+      key: "onLeave" as const,
+      title: "On Leave",
+      icon: <UserMinus className="h-5 w-5 text-orange-600" />,
+      subtitle: "Currently",
+      valueColor: "text-orange-600",
+    },
+    {
+      key: "presentToday" as const,
+      title: "Present Today",
+      icon: <CheckCircle className="h-5 w-5 text-green-600" />,
+      subtitle: "Today",
+      valueColor: "text-green-600",
+    },
+    {
+      key: "absentToday" as const,
+      title: "Absent Today",
+      icon: <XCircle className="h-5 w-5 text-red-600" />,
+      subtitle: "Today",
+      valueColor: "text-red-600",
+    },
+    {
+      key: "newHiresThisMonth" as const,
+      title: "New Hires",
+      icon: <TrendingUp className="h-5 w-5 text-muted-foreground" />,
+      subtitle: "This month",
+    },
+  ];
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-      {/* Total Employees */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
-          <Users className="h-5 w-5 " />
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold">
-            {kpiData.totalEmployees.toLocaleString()}
-          </div>
-          <p className={`text-xs mt-1 ${trendColors.positive}`}>
-            +12 from last month
-          </p>
-        </CardContent>
-      </Card>
+      {kpiConfig.map((config) => {
+        const value = kpiNumbers[config.key];
+        const subtitle =
+          config.subtitle ||
+          (config.key === "activeEmployees"
+            ? `${((kpiNumbers.activeEmployees / kpiNumbers.totalEmployees) * 100).toFixed(1)}% of workforce`
+            : "");
 
-      {/* Active Employees */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">
-            Active Employees
-          </CardTitle>
-          <UserCheck className="h-5 w-5 text-green-600" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold text-blue-600">
-            {kpiData.activeEmployees.toLocaleString()}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {((kpiData.activeEmployees / kpiData.totalEmployees) * 100).toFixed(
-              1,
-            )}
-            % of workforce
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* On Leave */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">On Leave</CardTitle>
-          <UserMinus className="h-5 w-5 text-red-600" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold">{kpiData.onLeave}</div>
-          <p className="text-xs text-muted-foreground mt-1">Total</p>
-        </CardContent>
-      </Card>
-
-      {/* New Hires This Month */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Present Today</CardTitle>
-          <CheckCircle className="h-5 w-5 text-green-600" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold text-green-600">
-            {kpiData.presentToday}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">Today</p>
-        </CardContent>
-      </Card>
-
-      {/* Open Positions */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Absent Today</CardTitle>
-          <XCircle className="h-5 w-5 text-red-600" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold text-orange-600">
-            {kpiData.AbsentToday}
-          </div>
-          <p className="text-xs text-orange-600 mt-1">Today</p>
-        </CardContent>
-      </Card>
-
-      {/* Average Satisfaction */}
-      {/* <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">
-            Avg. Satisfaction
-          </CardTitle>
-          <Smile className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold">{kpiData.avgSatisfaction}</div>
-          <p className="text-xs text-muted-foreground mt-1">
-            From last engagement survey
-          </p>
-        </CardContent>
-      </Card> */}
+        return (
+          <Card key={config.key}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                {config.title}
+              </CardTitle>
+              {config.icon}
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-bold ${config.valueColor || ""}`}>
+                {value.toLocaleString()}
+              </div>
+              {subtitle && (
+                <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 };

@@ -13,12 +13,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface EmployeeListsProps {
   selectedDepartment: string;
-  selectedStatus: string;
+  // selectedStatus: string;
 }
 
 const EmployeeLists: React.FC<EmployeeListsProps> = ({
   selectedDepartment,
-  selectedStatus,
 }) => {
   const deptFilter = selectedDepartment === "all" ? null : selectedDepartment;
 
@@ -88,6 +87,22 @@ const EmployeeLists: React.FC<EmployeeListsProps> = ({
       status: "present",
       email: "karan@taskflow.com",
     },
+    {
+      id: 8,
+      name: "Karan Patel",
+      dept: "finance",
+      role: "Digital Marketer",
+      status: "halfDay",
+      email: "karan@taskflow.com",
+    },
+    {
+      id: 8,
+      name: "Karan Patel",
+      dept: "Marketing",
+      role: "Digital Marketer",
+      status: "halfDay",
+      email: "karan@taskflow.com",
+    },
   ];
 
   const filteredEmployees = useMemo(() => {
@@ -108,6 +123,10 @@ const EmployeeLists: React.FC<EmployeeListsProps> = ({
   );
   const onLeaveEmployees = filteredEmployees.filter(
     (e) => e.status === "onleave",
+  );
+
+  const halfDayEmployees = filteredEmployees.filter(
+    (e) => e.status === "halfDay",
   );
 
   const EmployeeTable = ({
@@ -196,7 +215,13 @@ const EmployeeLists: React.FC<EmployeeListsProps> = ({
       <EmployeeTable
         title="On Leave Employees"
         employees={onLeaveEmployees}
-        badgeColor="bg-amber-100 text-amber-700"
+        badgeColor="bg-orange-100 text-orange-700"
+      />
+
+      <EmployeeTable
+        title="Half Day Employees"
+        employees={halfDayEmployees}
+        badgeColor="bg-yellow-100 text-yellow-700"
       />
     </div>
   );
