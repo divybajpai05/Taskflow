@@ -11,7 +11,7 @@ import type { Task } from "@/types/types";
 import { initialTasks } from "../mytask/Mytasks";
 import { AddTaskModal } from "../mytask/AddTaskModal";
 import { KanbanColumn } from "./KanbanColumn";
-import { StatusColors } from "../overview/ActiveTaskQueue";
+import { StatusColors } from "../overview/components/ActiveTaskQueue";
 import { TaskDetailModal } from "./TaskDetailModal";
 import {
   Select,

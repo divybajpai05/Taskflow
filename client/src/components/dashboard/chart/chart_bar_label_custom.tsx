@@ -1,14 +1,7 @@
 "use client";
 
 import { TrendingUp } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 
 import {
   Card,
@@ -18,88 +11,106 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  type ChartConfig,
 } from "@/components/ui/chart";
 
-export const description = "A bar chart with a custom label";
-
 const chartData = [
-  { team: "Admin", desktop: 186, mobile: 80 },
-  { team: "Teachnical Team", desktop: 305, mobile: 200 },
-  { team: "Editing", desktop: 237, mobile: 120 },
-  { team: "HR", desktop: 73, mobile: 190 },
-  { team: "Graphics", desktop: 209, mobile: 130 },
+  { department: "Engineering", employees: 124 },
+  { department: "Marketing", employees: 68 },
+  { department: "Design", employees: 45 },
+  { department: "Finance", employees: 32 },
+  { department: "HR", employees: 18 },
+  { department: "Sales", employees: 57 },
 ];
 
-const chartConfig = {
-  desktop: {
-    label: "value",
-    color: "var(--chart-2)",
-  },
-  mobile: {
-    label: "Mobile",
-    color: "var(--chart-2)",
-  },
-  label: {
-    color: "var(--background)",
-  },
-} satisfies ChartConfig;
+const COLORS = [
+  "#111827",
+  "#1f2937",
+  "#374151",
+  "#4b5563",
+  "#6b7280",
+  "#111827",
+];
 
-export function ChartBarLabelCustom() {
+export function DepartmentHeadcountChart() {
+  const totalEmployees = chartData.reduce(
+    (sum, item) => sum + item.employees,
+    0,
+  );
+
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle>Team Distribution</CardTitle>
-        <CardDescription></CardDescription>
+        <CardTitle>Department Headcount</CardTitle>
+        <CardDescription>
+          Number of employees across departments (as of April 2026)
+        </CardDescription>
       </CardHeader>
-      <CardContent>
-        <ChartContainer config={chartConfig}>
+      <CardContent className="">
+        <ChartContainer config={{}} className="h-[350px] w-full">
           <BarChart
-            accessibilityLayer
             data={chartData}
             layout="vertical"
-            margin={{
-              right: 16,
-            }}
+            margin={{ top: 20, right: 20, left: 90, bottom: 20 }} // Increased left margin for better alignment
           >
-            <CartesianGrid horizontal={false} />
+            <CartesianGrid
+              horizontal={false}
+              strokeDasharray="3 3"
+              stroke="#f1f5f9"
+            />
+
+            {/* Left-aligned Department Names */}
             <YAxis
-              dataKey="team"
+              dataKey="department"
               type="category"
               tickLine={false}
-              tickMargin={10}
               axisLine={false}
-              tickFormatter={(value) => value.slice(0, 3)}
-              hide
+              tickMargin={90} // Extra space between text and bars
+              width={10} // Wider area for department names
+              tick={{
+                fill: "#475569",
+                fontSize: 14.5,
+                fontWeight: 500,
+                textAnchor: "start", // Forces left alignment
+              }}
             />
-            <XAxis dataKey="desktop" type="number" hide />
+
+            <XAxis type="number" />
+
             <ChartTooltip
               cursor={false}
               content={<ChartTooltipContent indicator="line" />}
             />
-            <Bar dataKey="desktop" fill="var(--color-desktop)" radius={4}>
-              <LabelList
-                dataKey="team"
-                position="insideLeft"
-                offset={8}
-                className="fill-(--color-label)"
-                fontSize={12}
-              />
-              <LabelList
-                dataKey="desktop"
-                position="right"
-                offset={8}
-                className="fill-foreground"
-                fontSize={12}
-              />
+
+            {/* Thicker & Nicer Bars */}
+            <Bar
+              dataKey="employees"
+              radius={10}
+              barSize={48} // Thicker bars
+            >
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={COLORS[index % COLORS.length]}
+                />
+              ))}
             </Bar>
           </BarChart>
         </ChartContainer>
       </CardContent>
+
+      <CardFooter className="flex-col items-start gap-2 text-sm border-t pt-6">
+        <div className="flex items-center gap-2 font-medium leading-none text-gray-900">
+          Total Workforce <TrendingUp className="h-4 w-4" />
+        </div>
+        <div className="text-muted-foreground">
+          {totalEmployees} employees across 6 departments
+        </div>
+      </CardFooter>
     </Card>
   );
 }

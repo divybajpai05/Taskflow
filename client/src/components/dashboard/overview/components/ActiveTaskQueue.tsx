@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion"; // Import animation tools
 import {
@@ -75,11 +73,11 @@ const tasks = [
 ];
 
 export const StatusColors: Record<Status, string> = {
-  Todo: "bg-slate-300 ",
+  Todo: "bg-yellow-500",
   "In progress": "bg-blue-500",
   Done: "bg-green-500",
   Cancelled: "bg-red-500",
-  "On Hold": "bg-black",
+  "On Hold": "bg-slate-500",
 };
 
 export const priorityColors: Record<Priority, string> = {

@@ -189,11 +189,21 @@ const LeaveManagement: React.FC = () => {
               <SelectValue placeholder="All Departments" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem className="cursor-pointer" value="All">All Departments</SelectItem>
-              <SelectItem className="cursor-pointer" value="Engineering">Engineering</SelectItem>
-              <SelectItem className="cursor-pointer" value="Marketing">Marketing</SelectItem>
-              <SelectItem className="cursor-pointer" value="Finance">Finance</SelectItem>
-              <SelectItem className="cursor-pointer" value="HR">HR</SelectItem>
+              <SelectItem className="cursor-pointer" value="All">
+                All Departments
+              </SelectItem>
+              <SelectItem className="cursor-pointer" value="Engineering">
+                Engineering
+              </SelectItem>
+              <SelectItem className="cursor-pointer" value="Marketing">
+                Marketing
+              </SelectItem>
+              <SelectItem className="cursor-pointer" value="Finance">
+                Finance
+              </SelectItem>
+              <SelectItem className="cursor-pointer" value="HR">
+                HR
+              </SelectItem>
             </SelectContent>
           </Select>
 
@@ -212,24 +222,24 @@ const LeaveManagement: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col gap-5">
             <div className="flex flex-row justify-between w-full">
-              <p className="text-gray-500 text-sm">Total Requests</p>
+              <p className="text-gray-600 text-sm">Total Requests</p>
               <Users className="w-5 h-5 text-blue-600" />
             </div>
             <p className="text-4xl font-semibold text-gray-900">
               {stats.total}
             </p>
+            <p className="text-gray-600 text-xs">This year</p>
           </div>
 
           <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col gap-5">
             <div className="flex flex-row justify-between w-full">
-              <p className="text-gray-500 text-sm">Pending</p>
+              <p className="text-gray-600 text-sm">Pending</p>
               <Clock className="w-6 h-6 text-amber-600" />
             </div>
-            <div>
-              <p className="text-4xl font-semibold text-gray-900">
-                {stats.pending}
-              </p>
-            </div>
+            <p className="text-4xl font-semibold text-gray-900">
+              {stats.pending}
+            </p>
+            <p className="text-gray-600 text-xs">This year</p>
           </div>
 
           <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col gap-5">
@@ -237,11 +247,10 @@ const LeaveManagement: React.FC = () => {
               <p className="text-gray-500 text-sm">Approved</p>
               <CheckCircle className="w-6 h-6 text-emerald-600" />
             </div>
-            <div>
-              <p className="text-4xl font-semibold text-gray-900">
-                {stats.approved}
-              </p>
-            </div>
+            <p className="text-4xl font-semibold text-gray-900">
+              {stats.approved}
+            </p>
+            <p className="text-gray-600 text-xs">This year</p>
           </div>
 
           <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col gap-5">
@@ -249,11 +258,10 @@ const LeaveManagement: React.FC = () => {
               <p className="text-gray-500 text-sm">Rejected</p>
               <XCircle className="w-6 h-6 text-red-600" />
             </div>
-            <div>
-              <p className="text-4xl font-semibold text-gray-900">
-                {stats.rejected}
-              </p>
-            </div>
+            <p className="text-4xl font-semibold text-gray-900">
+              {stats.rejected}
+            </p>
+            <p className="text-gray-600 text-xs">This year</p>
           </div>
         </div>
 

@@ -40,7 +40,7 @@ export function KanbanColumn({
     >
       {/* Column Header */}
       <div
-        className={`px-5 py-4 flex items-center justify-between border-b bg-white rounded-t-xl cursor-pointer ${colorClass}`}
+        className={`px-5 py-4 flex items-center justify-between border-b bg-white rounded-t-xl cursor-pointer`}
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
         <div className="flex items-center gap-3">
@@ -59,7 +59,7 @@ export function KanbanColumn({
       </div>
 
       {!isCollapsed && (
-        <div className="flex-1 p-4 space-y-3 min-h-[400px]">
+        <div className="flex-1 p-4 space-y-3 min-h-100">
           <SortableContext
             items={tasks.map((t) => t.id)}
             strategy={verticalListSortingStrategy}

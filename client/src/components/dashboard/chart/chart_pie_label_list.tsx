@@ -1,7 +1,7 @@
 "use client";
 
 import { TrendingUp } from "lucide-react";
-import { LabelList, Pie, PieChart } from "recharts";
+import { Pie, PieChart, Cell, Label } from "recharts";
 
 import {
   Card,
@@ -11,85 +11,110 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  type ChartConfig,
 } from "@/components/ui/chart";
 
-export const description = "A pie chart with a label list";
-
 const chartData = [
-  { tasks: "Todo", value: 10, fill: "#eab308" },
-  { tasks: "Done", value: 30, fill: "#16a34a" },
-  { tasks: "In progress", value: 50, fill: "#1e40af" },
-  { tasks: "Cancelled", value: 50, fill: "#dc2626" },
-  { tasks: "On Hold", value: 50, fill: "#0a0a0a" },
+  { name: "In Progress", value: 50, fill: "#3b82f6" },
+  { name: "Done", value: 30, fill: "#22c55e" },
+  { name: "Todo", value: 10, fill: "#eab308" },
+  { name: "On Hold", value: 15, fill: "#64748b" },
+  { name: "Cancelled", value: 8, fill: "#ef4444" },
 ];
 
-const chartConfig = {
-  tasks: {
-    label: "tasks",
-  },
-  Todo: {
-    label: "Todo",
-  },
+const totalTasks = chartData.reduce((sum, item) => sum + item.value, 0);
 
-  Done: {
-    label: "Done",
-  },
-
-  "In progress": {
-    label: "In progress",
-  },
-
-  Cancelled: {
-    label: "Cancelled",
-  },
-  "On Hold": {
-    label: "On Hold",
-  },
-} satisfies ChartConfig;
-
-export function ChartPieLabelList() {
+export function TaskStatusChart() {
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="items-center pb-0">
-        <CardTitle>Tasks status</CardTitle>
-        <CardDescription></CardDescription>
+    <Card className="w-full flex flex-col">
+      <CardHeader className="items-center pb-2">
+        <CardTitle>Task Status</CardTitle>
+        <CardDescription>Current distribution of all tasks</CardDescription>
       </CardHeader>
-      <CardContent className="flex-1 pb-0">
+
+      <CardContent className="flex-1 pb-0 flex items-center justify-center">
         <ChartContainer
-          config={chartConfig}
-          className="mx-auto aspect-square max-h-87.5 [&_.recharts-text]:fill-background"
+          config={{}}
+          className="mx-auto aspect-square max-h-[320px] w-full"
         >
           <PieChart>
             <ChartTooltip
-              content={<ChartTooltipContent nameKey="tasks" hideLabel />}
+              content={<ChartTooltipContent hideLabel />}
+              cursor={false}
             />
-            <Pie data={chartData} dataKey="value">
-              <LabelList
-                dataKey="tasks"
-                className="fill-background"
-                stroke="none"
-                fontSize={12}
-                formatter={(value) =>
-                  chartConfig[value as keyof typeof chartConfig]?.label
-                }
+
+            <Pie
+              data={chartData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              innerRadius={85}
+              outerRadius={130}
+              strokeWidth={4}
+            >
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.fill} />
+              ))}
+
+              {/* Center Total Label */}
+              <Label
+                content={({ viewBox }) => {
+                  if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                    return (
+                      <text
+                        x={viewBox.cx}
+                        y={viewBox.cy}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                      >
+                        <tspan
+                          x={viewBox.cx}
+                          y={viewBox.cy}
+                          className="fill-foreground text-4xl font-bold"
+                        >
+                          {totalTasks}
+                        </tspan>
+                        <tspan
+                          x={viewBox.cx}
+                          y={(viewBox.cy || 0) + 24}
+                          className="fill-muted-foreground text-sm"
+                        >
+                          Tasks
+                        </tspan>
+                      </text>
+                    );
+                  }
+                }}
               />
             </Pie>
           </PieChart>
         </ChartContainer>
       </CardContent>
-      {/* <CardFooter className="flex-col gap-2 text-sm">
-        <div className="flex items-center gap-2 leading-none font-medium">
-          Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
+
+      {/* Legend */}
+      <CardFooter className="flex-col gap-3 pt-4 border-t">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-3 w-full text-sm">
+          {chartData.map((item) => (
+            <div key={item.name} className="flex items-center gap-3">
+              <div
+                className="w-3 h-3 rounded-full flex-shrink-0"
+                style={{ backgroundColor: item.fill }}
+              />
+              <div className="flex justify-between w-full">
+                <span className="text-muted-foreground">{item.name}</span>
+                <span className="font-medium text-foreground">
+                  {item.value}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
-        <div className="leading-none text-muted-foreground">
-          Showing total visitors for the last 6 months
-        </div>
-      </CardFooter> */}
+      </CardFooter>
     </Card>
   );
 }

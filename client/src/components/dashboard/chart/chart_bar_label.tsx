@@ -1,7 +1,14 @@
 "use client";
 
 import { TrendingUp } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, LabelList, XAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import {
   Card,
@@ -11,6 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
 import {
   ChartContainer,
   ChartTooltip,
@@ -18,68 +26,85 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 
-export const description = "A bar chart with a label";
-
 const chartData = [
-  { priority: "Urgent", value: 100, fill: "#b91c1c" },
-  { priority: "High", value: 186, fill: "#dc2626" },
+  { priority: "Urgent", value: 100, fill: "#ef4444" },
+  { priority: "High", value: 186, fill: "#f97316" },
   { priority: "Medium", value: 305, fill: "#eab308" },
-  { priority: "Low", value: 237, fill: "#16a34a" },
+  { priority: "Low", value: 237, fill: "#22c55e" },
 ];
 
 const chartConfig = {
   value: {
     label: "Tasks",
+    color: "hsl(var(--chart-1))",
   },
 } satisfies ChartConfig;
 
-export function ChartBarLabel() {
+export function PriorityBreakdownChart() {
+  const totalTasks = chartData.reduce((sum, item) => sum + item.value, 0);
+
   return (
-    <Card className="">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle>Priority Breakdown</CardTitle>
-        <CardDescription></CardDescription>
+        <CardDescription>
+          Distribution of tasks by priority level
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} >
+        <ChartContainer config={chartConfig} className="h-[320px] w-full">
           <BarChart
             accessibilityLayer
             data={chartData}
-            margin={{
-              top: 20,
-            }}
+            margin={{ top: 30, right: 20, left: 20, bottom: 10 }}
           >
-            <CartesianGrid vertical={false} />
+            <CartesianGrid
+              vertical={false}
+              strokeDasharray="3 3"
+              stroke="#f1f5f9"
+            />
+
             <XAxis
               dataKey="priority"
               tickLine={false}
-              tickMargin={10}
               axisLine={false}
-              tickFormatter={(value) => value.slice(0, 10)}
+              tickMargin={12}
+              tick={{
+                fill: "#64748b",
+                fontSize: 13,
+                fontWeight: 500,
+              }}
             />
+
+            <YAxis hide />
+
             <ChartTooltip
               cursor={false}
-              content={<ChartTooltipContent hideLabel />}
+              content={<ChartTooltipContent indicator="line" />}
             />
-            <Bar dataKey="value" radius={8}>
+
+            <Bar dataKey="value" radius={10} barSize={55}>
+              {/* Value label on top of each bar */}
               <LabelList
+                dataKey="value"
                 position="top"
-                offset={12}
-                className="fill-foreground"
-                fontSize={12}
+                offset={14}
+                className="fill-foreground font-semibold"
+                fontSize={14}
               />
             </Bar>
           </BarChart>
         </ChartContainer>
       </CardContent>
-      {/* <CardFooter className="flex-col items-start gap-2 text-sm">
-        <div className="flex gap-2 leading-none font-medium">
-          Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
+
+      <CardFooter className="flex-col items-start gap-2 text-sm border-t pt-5">
+        <div className="flex items-center gap-2 font-medium leading-none text-gray-900">
+          Total Tasks <TrendingUp className="h-4 w-4" />
         </div>
-        <div className="leading-none text-muted-foreground">
-          Showing total visitors for the last 6 months
+        <div className="text-muted-foreground">
+          {totalTasks} tasks • Highest in Medium Priority
         </div>
-      </CardFooter> */}
+      </CardFooter>
     </Card>
   );
 }

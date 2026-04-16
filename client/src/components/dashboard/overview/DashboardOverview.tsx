@@ -1,10 +1,10 @@
-import { ChartBarLabel } from "../chart/chart_bar_label";
-import { ChartBarLabelCustom } from "../chart/chart_bar_label_custom";
-import { ChartPieLabelList } from "../chart/chart_pie_label_list";
-import { ActiveTaskQueue } from "./ActiveTaskQueue";
-import { LiveActivity } from "./LiveActivity";
-import OverDueList from "./OverDueList";
-import { TeamWorkload } from "./TeamWorkload";
+import { PriorityBreakdownChart } from "../chart/chart_bar_label";
+import { DepartmentHeadcountChart } from "../chart/chart_bar_label_custom";
+import { TaskStatusChart } from "../chart/chart_pie_label_list";
+import { ActiveTaskQueue } from "./components/ActiveTaskQueue";
+import { LiveActivity } from "./components/LiveActivity";
+import OverDueList from "./components/OverDueList";
+import { TeamWorkload } from "./components/TeamWorkload";
 
 export default function DashboardOverview() {
   return (
@@ -14,9 +14,9 @@ export default function DashboardOverview() {
           Performance Overview
         </p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
-          <ChartPieLabelList />
-          <ChartBarLabel />
-          <ChartBarLabelCustom />
+          <TaskStatusChart />
+          <PriorityBreakdownChart />
+          <DepartmentHeadcountChart />
         </div>
       </div>
 

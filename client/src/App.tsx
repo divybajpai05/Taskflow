@@ -12,10 +12,10 @@ import Attendance from "./components/dashboard/attendance/Attendance.tsx";
 import LeaveManagement from "./components/dashboard/leave_management/Leave_Management.tsx";
 import HrCalendar from "./components/dashboard/hr_calender/Hr_Calendar.tsx";
 import EmailCenter from "./components/dashboard/email_center/Email_Center.tsx";
-import TeamsManagement from "./components/dashboard/teams/Teams.tsx";
-import UserManagement from "./components/dashboard/user_management/User_Management.tsx";
-import WorkspaceManagement from "./components/dashboard/workspaces/Workspaces.tsx";
-import ActivityLogs from "./components/dashboard/activity_logs/Activity_Logs.tsx";
+import Teams from "./components/dashboard/teams/Teams.tsx";
+import UserManagementPage from "./components/dashboard/user_management/User_Management.tsx";
+import WorkspaceSpacesPage from "./components/dashboard/workspaces/Workspaces.tsx";
+import ActivityLogsPage from "./components/dashboard/activity_logs/ActivityLogsPage.tsx";
 import NotFound from "./components/dashboard/NotFound.tsx";
 import TaskFlowCalendar from "./components/dashboard/calendar/Calendar.tsx";
 
@@ -47,12 +47,12 @@ export default function App() {
             <Route path="leave-management" element={<LeaveManagement />} />
             <Route path="hr-calendar" element={<HrCalendar />} />
             <Route path="email-center" element={<EmailCenter />} />
-            <Route path="teams" element={<TeamsManagement />} />
-            <Route path="user-management" element={<UserManagement />} />
+            <Route path="teams" element={<Teams />} />
+            <Route path="user-management" element={<UserManagementPage />} />
 
             {/* Admin Section */}
-            <Route path="workspaces" element={<WorkspaceManagement />} />
-            <Route path="activity" element={<ActivityLogs />} />
+            <Route path="workspaces" element={<WorkspaceSpacesPage />} />
+            <Route path="activity" element={<ActivityLogsPage />} />
 
             {/* General Settings */}
             <Route path="settings" element={<Settings />} />

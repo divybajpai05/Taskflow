@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { priorityColors } from "../overview/ActiveTaskQueue"; // Reuse your priority colors
+import { priorityColors } from "../overview/components/ActiveTaskQueue"; // Reuse your priority colors
 import { Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Task } from "@/types/types";

@@ -1,5 +1,7 @@
-export default function WorkspaceManagement() {
+import { WorkspaceManagement } from "./components/WorkspaceManagement";
+
+export default function WorkspaceSpacesPage() {
     return (
-        <div>Workspace management</div>
+        <WorkspaceManagement />
     )
 }

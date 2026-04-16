@@ -13,7 +13,6 @@ export interface Task {
   initials?: string;
 }
 
-
 export interface AddTaskModalProps {
   onAddTask: (task: Task) => void;
   onEditTask?: (task: Task) => void;
@@ -24,3 +23,27 @@ export interface AddTaskModalProps {
   initialDueDate?: string;
 }
 
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  body: string; // HTML string or plain text
+  category: "HR" | "Admin" | "General";
+  lastUsed?: Date;
+}
+
+export interface EmailRecipient {
+  id: string;
+  name: string;
+  email: string;
+  type: "employee" | "external";
+  department?: string;
+}
+
+export interface EmailDraft {
+  recipients: EmailRecipient[];
+  subject: string;
+  body: string;
+  attachments?: File[];
+  templateId?: string;
+}

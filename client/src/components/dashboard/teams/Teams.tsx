@@ -1,5 +1,5 @@
-export default function TeamsManagement() {
-    return (
-        <div>Teams management</div>
-    )
+import { TeamsManagement } from "./components/TeamsManagement";
+
+export default function Teams() {
+    return <TeamsManagement />
 }

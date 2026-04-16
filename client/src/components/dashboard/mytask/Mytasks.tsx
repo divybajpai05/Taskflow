@@ -23,7 +23,7 @@ import {
 import { Info, Edit2, Trash2, X, Plus } from "lucide-react";
 import { AddTaskModal } from "./AddTaskModal";
 import { useMemo, useState } from "react";
-import { priorityColors } from "../overview/ActiveTaskQueue";
+import { priorityColors } from "../overview/components/ActiveTaskQueue";
 import type { Status, Task } from "@/types/types";
 import { cn } from "@/lib/utils";
 import {
@@ -84,11 +84,11 @@ export const initialTasks: Task[] = [
 ];
 
 const StatusColors: Record<Status, string> = {
-  Todo: "text-neutral-600 border border-neutral-600/60 [&>svg]:text-neutral-600",
+  Todo: "text-yellow-600 border border-yellow-600/60 [&>svg]:text-yellow-600",
   "In progress": "text-blue-600 border border-blue-600 [&>svg]:text-blue-600",
   Done: "text-green-600 border border-green-600 [&>svg]:text-green-600",
   Cancelled: "text-red-600 border border-red-600 [&>svg]:text-red-600",
-  "On Hold": "text-black border border-black [&>svg]:text-black-600",
+  "On Hold": "text-slate-500 border border-slate [&>svg]:text-slate-600",
 };
 
 export default function TaskTable() {
