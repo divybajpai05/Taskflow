@@ -18,6 +18,7 @@ import WorkspaceSpacesPage from "./components/dashboard/workspaces/Workspaces.ts
 import ActivityLogsPage from "./components/dashboard/activity_logs/ActivityLogsPage.tsx";
 import NotFound from "./components/dashboard/NotFound.tsx";
 import TaskFlowCalendar from "./components/dashboard/calendar/Calendar.tsx";
+import VerifyEmail from "./pages/VerifyEmail.tsx";
 
 const LandingPage = lazy(() => import("./pages/LandingPage.tsx"));
 const DashboardLayout = lazy(
@@ -30,7 +31,7 @@ export default function App() {
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
-
+          <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/dashboard/*" element={<DashboardLayout />}>
             <Route index element={<DashboardOverview />} />
 
