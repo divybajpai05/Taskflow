@@ -53,7 +53,7 @@ export const generateVerificationToken = (): string => {
  */
 export const generateVerificationTokenJWT = (): string => {
   return jwt.sign({ purpose: "email_verification" }, config.jwt.secret, {
-    expiresIn: "24h",
+    expiresIn: config.jwt.refreshExpiry,
     // No extra data to keep it shorter
   } as jwt.SignOptions);
 };

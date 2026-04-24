@@ -18,7 +18,7 @@ export class AuthController {
         httpOnly: config.cookies.httpOnly,
         secure: config.cookies.secure,
         sameSite: config.cookies.sameSite,
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        maxAge: 15 * 24 * 60 * 60 * 1000,
       });
 
       res.status(201).json({
@@ -73,7 +73,7 @@ export class AuthController {
         httpOnly: config.cookies.httpOnly,
         secure: config.cookies.secure,
         sameSite: config.cookies.sameSite,
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        maxAge: 15 * 24 * 60 * 60 * 1000,
       });
 
       res.json({
@@ -118,14 +118,17 @@ export class AuthController {
 
   async refreshToken(req: Request, res: Response, next: NextFunction) {
     try {
-      const refreshToken = req.cookies.refreshToken;
-
-      if (!refreshToken) {
+      // ✅ Check if cookies exist BEFORE accessing
+      if (!req.cookies || !req.cookies.refreshToken) {
+        console.log("🔴 No refresh token cookie found");
         return res.status(401).json({
           success: false,
           error: "No refresh token provided",
         });
       }
+
+      const refreshToken = req.cookies.refreshToken;
+      console.log("🔵 Refresh token found, processing...");
 
       const result = await authService.refreshToken(refreshToken);
 
@@ -134,7 +137,23 @@ export class AuthController {
         data: result,
       });
     } catch (error: any) {
-      next(error);
+      console.error("🔴 Refresh error:", error.message);
+
+      // Handle specific errors gracefully
+      if (
+        error.message?.includes("Invalid") ||
+        error.message?.includes("expired")
+      ) {
+        return res.status(401).json({
+          success: false,
+          error: error.message,
+        });
+      }
+
+      return res.status(401).json({
+        success: false,
+        error: "Token refresh failed",
+      });
     }
   }
 

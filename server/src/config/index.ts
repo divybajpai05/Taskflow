@@ -10,8 +10,8 @@ export const config = {
   jwt: {
     secret: process.env.JWT_SECRET!,
     refreshSecret: process.env.JWT_REFRESH_SECRET!,
-    accessExpiry: process.env.JWT_ACCESS_EXPIRY || "15m",
-    refreshExpiry: process.env.JWT_REFRESH_EXPIRY || "7d",
+    accessExpiry: process.env.JWT_ACCESS_EXPIRY || "15d",
+    refreshExpiry: process.env.JWT_REFRESH_EXPIRY || "15d",
   },
 
   brevo: {
@@ -22,8 +22,9 @@ export const config = {
 
   cookies: {
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict" as const,
+    sameSite: "lax" as const,
     httpOnly: true,
+    maxAge: 15 * 24 * 60 * 60 * 1000,
   },
 
   rateLimit: {

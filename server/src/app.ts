@@ -2,6 +2,15 @@ import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import authRoutes from "./modules/auth/auth.routes";
 import { errorHandler } from "./middlewares/error.middleware";
+import userRoutes from "./modules/users/user.routes";
+import { authenticate } from "./middlewares/auth.middleware";
+import roleRoutes from "./modules/roles/role.routes";
+
+import { db } from "./db/drizzle";
+import { teams } from "./db/schema";
+import { eq } from "drizzle-orm";
+import cookieParser from "cookie-parser";
+
 
 const app = express();
 
@@ -37,14 +46,24 @@ const corsOptions: cors.CorsOptions = {
   optionsSuccessStatus: 200,
 };
 
+app.use(cookieParser());
 app.use(express.json());
 // Apply CORS middleware
 app.use(cors(corsOptions));
 app.use(express.urlencoded({ extended: true }));
 
-
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/roles", roleRoutes);
+
+
+// Add this to your server.ts temporarily
+app.get("/api/teams", authenticate, async (req, res) => {
+  const teamsAll = await db.select().from(teams).where(eq(teams.workspaceId, req.user!.workspaceId));
+  res.json({ success: true, data: teamsAll });
+});
+
 
 // Health check
 app.get("/health", (req, res) => {

@@ -42,6 +42,9 @@ export async function authenticate(
       decoded.userId,
     );
 
+     console.log("🔵 Authenticated user:", userWithPerms.name);
+     console.log("🔵 Permissions:", userWithPerms.permissions);
+
     req.user = {
       id: userWithPerms.id,
       email: userWithPerms.email,
@@ -75,6 +78,8 @@ export function requirePermission(permission: string) {
     }
 
     if (!req.user.permissions.includes(permission)) {
+      console.log(`🔴 Permission denied: missing "${permission}"`);
+      console.log(`🔴 User has:`, req.user.permissions);
       return res.status(403).json({
         success: false,
         error: "Forbidden",

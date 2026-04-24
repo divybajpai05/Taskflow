@@ -1,68 +1,368 @@
+// App.tsx
 import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
-import Loading from "./components/ui/Loading.tsx";
-import DashboardOverview from "./components/dashboard/overview/DashboardOverview.tsx";
-import Settings from "./components/dashboard/setting/Settings.tsx";
-import Mytasks from "./components/dashboard/mytask/Mytasks.tsx";
-import Notifications from "./components/dashboard/notifications/Notification.tsx";
-import KanbanBoard from "./components/dashboard/kanban/KanbanBoard.tsx";
-import AnalyticsReport from "./components/dashboard/analytics/Analytics.tsx";
-import HRDashboard from "./components/dashboard/hr_dashboard/HRDashboard.tsx";
-import Attendance from "./components/dashboard/attendance/Attendance.tsx";
-import LeaveManagement from "./components/dashboard/leave_management/Leave_Management.tsx";
-import HrCalendar from "./components/dashboard/hr_calender/Hr_Calendar.tsx";
-import EmailCenter from "./components/dashboard/email_center/Email_Center.tsx";
-import Teams from "./components/dashboard/teams/Teams.tsx";
-import UserManagementPage from "./components/dashboard/user_management/User_Management.tsx";
-import WorkspaceSpacesPage from "./components/dashboard/workspaces/Workspaces.tsx";
-import ActivityLogsPage from "./components/dashboard/activity_logs/ActivityLogsPage.tsx";
-import NotFound from "./components/dashboard/NotFound.tsx";
-import TaskFlowCalendar from "./components/dashboard/calendar/Calendar.tsx";
-import VerifyEmail from "./pages/VerifyEmail.tsx";
+import Loading from "./components/ui/Loading";
 
-const LandingPage = lazy(() => import("./pages/LandingPage.tsx"));
+// Loader components
+import DashboardOverviewLoader from "./components/loaders/DashboardOverviewLoader";
+import MyTasksLoader from "./components/loaders/MyTasksLoader";
+import KanbanBoardLoader from "./components/loaders/KanbanBoardLoader";
+import CalendarLoader from "./components/loaders/CalendarLoader";
+import AnalyticsLoader from "./components/loaders/AnalyticsLoader";
+import HRDashboardLoader from "./components/loaders/HRDashboardLoader";
+import AttendanceLoader from "./components/loaders/AttendanceLoader";
+import LeaveManagementLoader from "./components/loaders/LeaveManagementLoader";
+import HRCalendarLoader from "./components/loaders/HRCalendarLoader";
+import EmailCenterLoader from "./components/loaders/EmailCenterLoader";
+import TeamsLoader from "./components/loaders/TeamsLoader";
+import UserManagementLoader from "./components/loaders/UserManagementLoader";
+import WorkspaceLoader from "./components/loaders/WorkspaceLoader";
+import ActivityLogLoader from "./components/loaders/ActivityLogLoader";
+import ProtectedRoute from "./components/security/ProtectedRoute";
+import { RoleManagementPage } from "./components/dashboard/role_management/RoleManagementPage";
+
+// =========================================
+// Lazy Loaded Page Components
+// =========================================
+
+// Public Pages
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+
+// Dashboard Layout
 const DashboardLayout = lazy(
-  () => import("./components/dashboard/DashboardLayout.tsx"),
+  () => import("./components/dashboard/DashboardLayout"),
 );
+
+// Application Section
+const DashboardOverview = lazy(
+  () => import("./components/dashboard/overview/DashboardOverview"),
+);
+const Mytasks = lazy(() => import("./components/dashboard/mytask/Mytasks"));
+const KanbanBoard = lazy(
+  () => import("./components/dashboard/kanban/KanbanBoard"),
+);
+const TaskFlowCalendar = lazy(
+  () => import("./components/dashboard/calendar/Calendar"),
+);
+const AnalyticsReport = lazy(
+  () => import("./components/dashboard/analytics/Analytics"),
+);
+const Notifications = lazy(
+  () => import("./components/dashboard/notifications/Notification"),
+);
+
+// HR Management Section
+const HRDashboard = lazy(
+  () => import("./components/dashboard/hr_dashboard/HRDashboard"),
+);
+const Attendance = lazy(
+  () => import("./components/dashboard/attendance/Attendance"),
+);
+const LeaveManagement = lazy(
+  () => import("./components/dashboard/leave_management/Leave_Management"),
+);
+const HrCalendar = lazy(
+  () => import("./components/dashboard/hr_calender/Hr_Calendar"),
+);
+const EmailCenter = lazy(
+  () => import("./components/dashboard/email_center/Email_Center"),
+);
+const Teams = lazy(() => import("./components/dashboard/teams/Teams"));
+
+// Admin Section
+const UserManagementPage = lazy(
+  () => import("./components/dashboard/user_management/User_Management"),
+);
+const WorkspaceSpacesPage = lazy(
+  () => import("./components/dashboard/workspaces/Workspaces"),
+);
+
+// General Section
+const ActivityLogsPage = lazy(
+  () => import("./components/dashboard/activity_logs/ActivityLogsPage"),
+);
+
+// Settings & 404
+const Settings = lazy(() => import("./components/dashboard/setting/Settings"));
+const NotFound = lazy(() => import("./components/dashboard/NotFound"));
+
+// =========================================
+// App Component
+// =========================================
 
 export default function App() {
   return (
-    <div>
-      <Suspense fallback={<Loading />}>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/verify-email" element={<VerifyEmail />} />
-          <Route path="/dashboard/*" element={<DashboardLayout />}>
-            <Route index element={<DashboardOverview />} />
+    <Routes>
+      {/* ========================================= */}
+      {/* Public Routes (No Auth Required)          */}
+      {/* ========================================= */}
+      <Route
+        path="/"
+        element={
+          <Suspense fallback={<Loading />}>
+            <LandingPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/verify-email"
+        element={
+          <Suspense fallback={<Loading />}>
+            <VerifyEmail />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <Suspense fallback={<Loading />}>
+            <ResetPassword />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <Suspense fallback={<Loading />}>
+            <ForgotPassword />
+          </Suspense>
+        }
+      />
 
-            {/* Application Section */}
-            <Route path="tasks" element={<Mytasks />} />
-            <Route path="kanban" element={<KanbanBoard />} />
-            <Route path="calender" element={<TaskFlowCalendar />} />
-            <Route path="analytics" element={<AnalyticsReport />} />
-            <Route path="notifications" element={<Notifications />} />
+      {/* ========================================= */}
+      {/* Protected Dashboard Routes               */}
+      {/* ========================================= */}
+      <Route element={<ProtectedRoute />}>
+        <Route
+          path="/dashboard"
+          element={
+            <Suspense fallback={<Loading />}>
+              <DashboardLayout />
+            </Suspense>
+          }
+        >
+          {/* Overview - All logged-in users */}
+          <Route
+            index
+            element={
+              <Suspense fallback={<DashboardOverviewLoader />}>
+                <DashboardOverview />
+              </Suspense>
+            }
+          />
 
-            {/* HR Management Section */}
-            <Route path="hr-dashboard" element={<HRDashboard />} />
-            <Route path="attendance-management" element={<Attendance />} />
-            <Route path="leave-management" element={<LeaveManagement />} />
-            <Route path="hr-calendar" element={<HrCalendar />} />
-            <Route path="email-center" element={<EmailCenter />} />
-            <Route path="teams" element={<Teams />} />
-            <Route path="user-management" element={<UserManagementPage />} />
+          {/* ========================================= */}
+          {/* Application Section                      */}
+          {/* ========================================= */}
+          <Route
+            path="tasks"
+            element={
+              <Suspense fallback={<MyTasksLoader />}>
+                <Mytasks />
+              </Suspense>
+            }
+          />
+          <Route
+            path="kanban"
+            element={
+              <Suspense fallback={<KanbanBoardLoader />}>
+                <KanbanBoard />
+              </Suspense>
+            }
+          />
+          <Route
+            path="calendar"
+            element={
+              <Suspense fallback={<CalendarLoader />}>
+                <TaskFlowCalendar />
+              </Suspense>
+            }
+          />
 
-            {/* Admin Section */}
-            <Route path="workspaces" element={<WorkspaceSpacesPage />} />
-            <Route path="activity" element={<ActivityLogsPage />} />
-
-            {/* General Settings */}
-            <Route path="settings" element={<Settings />} />
-            <Route path="*" element={<NotFound />} />
+          {/* Analytics - Specific permission required */}
+          <Route element={<ProtectedRoute requiredPermission="analytics" />}>
+            <Route
+              path="analytics"
+              element={
+                <Suspense fallback={<AnalyticsLoader />}>
+                  <AnalyticsReport />
+                </Suspense>
+              }
+            />
           </Route>
 
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Suspense>
-    </div>
+          {/* Notifications - All logged-in users */}
+          <Route
+            path="notifications"
+            element={
+              <Suspense fallback={<Loading />}>
+                <Notifications />
+              </Suspense>
+            }
+          />
+
+          {/* ========================================= */}
+          {/* HR Management Section                    */}
+          {/* ✅ requireAll={false} - Only needs ONE HR permission */}
+          {/* ========================================= */}
+          <Route
+            element={
+              <ProtectedRoute
+                requiredPermissions={[
+                  "hr_dashboard",
+                  "attendance",
+                  "leave_management",
+                  "hr_calendar",
+                  "email_center",
+                ]}
+                requireAll={false}
+              />
+            }
+          >
+            <Route
+              path="hr-dashboard"
+              element={
+                <Suspense fallback={<HRDashboardLoader />}>
+                  <HRDashboard />
+                </Suspense>
+              }
+            />
+            <Route
+              path="attendance-management"
+              element={
+                <Suspense fallback={<AttendanceLoader />}>
+                  <Attendance />
+                </Suspense>
+              }
+            />
+            <Route
+              path="leave-management"
+              element={
+                <Suspense fallback={<LeaveManagementLoader />}>
+                  <LeaveManagement />
+                </Suspense>
+              }
+            />
+            <Route
+              path="hr-calendar"
+              element={
+                <Suspense fallback={<HRCalendarLoader />}>
+                  <HrCalendar />
+                </Suspense>
+              }
+            />
+            <Route
+              path="email-center"
+              element={
+                <Suspense fallback={<EmailCenterLoader />}>
+                  <EmailCenter />
+                </Suspense>
+              }
+            />
+          </Route>
+
+          {/* Teams - Separate from HR (Admin, HR, Manager) */}
+          <Route
+            element={<ProtectedRoute requiredPermission="team_management" />}
+          >
+            <Route
+              path="teams"
+              element={
+                <Suspense fallback={<TeamsLoader />}>
+                  <Teams />
+                </Suspense>
+              }
+            />
+          </Route>
+
+          {/* ========================================= */}
+          {/* Admin Section                             */}
+          {/* ✅ requireAll={false} - Only needs ONE admin permission */}
+          {/* ========================================= */}
+          <Route
+            element={
+              <ProtectedRoute
+                requiredPermissions={[
+                  "workspaces",
+                  "user_management",
+                  "role_management",
+                ]}
+                requireAll={false}
+              />
+            }
+          >
+            <Route
+              path="workspaces"
+              element={
+                <Suspense fallback={<WorkspaceLoader />}>
+                  <WorkspaceSpacesPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="user-management"
+              element={
+                <Suspense fallback={<UserManagementLoader />}>
+                  <UserManagementPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="role-management"
+              element={
+                <Suspense fallback={<UserManagementLoader />}>
+                  <RoleManagementPage />
+                </Suspense>
+              }
+            />
+          </Route>
+
+          {/* Activity Logs - All logged-in users */}
+          <Route
+            path="activity"
+            element={
+              <Suspense fallback={<ActivityLogLoader />}>
+                <ActivityLogsPage />
+              </Suspense>
+            }
+          />
+
+          {/* Settings - All logged-in users */}
+          <Route
+            path="settings"
+            element={
+              <Suspense fallback={<Loading />}>
+                <Settings />
+              </Suspense>
+            }
+          />
+
+          {/* Dashboard 404 */}
+          <Route
+            path="*"
+            element={
+              <Suspense fallback={<Loading />}>
+                <NotFound />
+              </Suspense>
+            }
+          />
+        </Route>
+      </Route>
+
+      {/* ========================================= */}
+      {/* Global 404                                */}
+      {/* ========================================= */}
+      <Route
+        path="*"
+        element={
+          <Suspense fallback={<Loading />}>
+            <NotFound />
+          </Suspense>
+        }
+      />
+    </Routes>
   );
 }

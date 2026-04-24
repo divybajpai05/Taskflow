@@ -15,6 +15,7 @@ import { Field, FieldGroup } from "../ui/field";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import apiClient from "../../api/client";
+import { useAuthStore } from "@/stores";
 
 interface SignupProps {
   open?: boolean;
@@ -46,6 +47,7 @@ export default function Signup({
   onSigninClick,
   onSuccess,
 }: SignupProps) {
+  const { setAuth, setLoading } = useAuthStore();
   const [formData, setFormData] = useState<FormData>({
     workspaceName: "",
     fullName: "",
@@ -181,6 +183,7 @@ export default function Signup({
     }
 
     setIsLoading(true);
+    setLoading(true);
     setErrors({});
 
     const loadingToastId = toast.loading("Creating your workspace...");
@@ -201,6 +204,10 @@ export default function Signup({
       if (response.data.success) {
         toast.dismiss(loadingToastId);
 
+        const { user, accessToken } = response.data.data;
+
+        setAuth(user, accessToken);
+
         toast.success("🎉 Workspace created successfully!", {
           description: "Please check your email to verify your account.",
           duration: 8000,
@@ -210,8 +217,8 @@ export default function Signup({
           },
         });
 
-        localStorage.setItem("authToken", response.data.data.accessToken);
-        localStorage.setItem("user", JSON.stringify(response.data.data.user));
+        // localStorage.setItem("authToken", response.data.data.accessToken);
+        // localStorage.setItem("user", JSON.stringify(response.data.data.user));
 
         if (onSuccess) {
           onSuccess(response.data.data);
@@ -257,6 +264,7 @@ export default function Signup({
       });
     } finally {
       setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -279,16 +287,16 @@ export default function Signup({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-sm">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="">
           <DialogHeader>
             <DialogTitle className="text-lg">Create workspace</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="">
               Create your personal workspace and manage team and task
               efficiently.
             </DialogDescription>
           </DialogHeader>
 
-          <FieldGroup>
+          <FieldGroup className="py-4">
             <Field>
               <Label htmlFor="workspace-name">Workspace Name*</Label>
               <Input

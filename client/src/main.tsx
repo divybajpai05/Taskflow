@@ -4,12 +4,15 @@ import "./index.css";
 import App from "./App.tsx";
 import { BrowserRouter } from "react-router-dom";
 import { Toaster } from "./components/ui/sonner.tsx";
+import AuthInitializer from "./components/inhance_ux/AuthInitializer.tsx";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-      <Toaster position="top-center"/>
-    </BrowserRouter>
+    <AuthInitializer>
+      <BrowserRouter>
+        <App />
+        <Toaster position="top-center" />
+      </BrowserRouter>
+    </AuthInitializer>
   </StrictMode>,
 );

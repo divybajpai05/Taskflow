@@ -15,6 +15,8 @@ import { Field, FieldGroup } from "../ui/field";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import apiClient from "../../api/client";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuthStore } from "@/stores";
 
 interface SigninProps {
   open?: boolean;
@@ -40,6 +42,9 @@ export default function Signin({
   onSignupClick,
   onSuccess,
 }: SigninProps) {
+  const navigate = useNavigate();
+
+  const { setAuth, setLoading } = useAuthStore();
   const [formData, setFormData] = useState<FormData>({
     email: "",
     password: "",
@@ -89,6 +94,7 @@ export default function Signin({
     }
 
     setIsLoading(true);
+    setLoading(true);
     setErrors({});
 
     const loadingToastId = toast.loading("Signing in...");
@@ -101,11 +107,18 @@ export default function Signin({
       if (response.data.success) {
         toast.dismiss(loadingToastId);
 
-        // Store auth token
-        localStorage.setItem("authToken", response.data.data.accessToken);
+        const { user, accessToken } = response.data.data;
 
-        // Store user data
-        localStorage.setItem("user", JSON.stringify(response.data.data.user));
+        // ✅ Store in Zustand
+        setAuth(user, accessToken);
+
+        console.log("🔵 Store after setAuth:", useAuthStore.getState());
+
+        // // Store auth token
+        // localStorage.setItem("authToken", response.data.data.accessToken);
+
+        // // Store user data
+        // localStorage.setItem("user", JSON.stringify(response.data.data.user));
 
         toast.success("🎉 Welcome back!", {
           description: `Signed in as ${response.data.data.user.name}`,
@@ -127,7 +140,8 @@ export default function Signin({
         });
 
         // Redirect to dashboard (adjust path as needed)
-        window.location.href = "/dashboard";
+        // window.location.href = "/dashboard";
+        navigate("/dashboard");
       }
     } catch (error: any) {
       toast.dismiss(loadingToastId);
@@ -174,6 +188,7 @@ export default function Signin({
       }
     } finally {
       setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -189,27 +204,6 @@ export default function Signin({
       });
     } catch (error) {
       toast.error("Failed to resend verification email");
-    }
-  };
-
-  const handleForgotPassword = async () => {
-    if (!formData.email) {
-      toast.error("Please enter your email first", {
-        description: "We'll send a password reset link to your email.",
-      });
-      return;
-    }
-
-    try {
-      await apiClient.post("/auth/forgot-password", { email: formData.email });
-      toast.success("Password reset email sent!", {
-        description: "Check your inbox for the reset link.",
-        duration: 6000,
-      });
-    } catch (error) {
-      toast.error("Failed to send reset email", {
-        description: "Please try again later.",
-      });
     }
   };
 
@@ -232,7 +226,7 @@ export default function Signin({
             <DialogDescription>Welcome Back!</DialogDescription>
           </DialogHeader>
 
-          <FieldGroup>
+          <FieldGroup className="py-4">
             <Field>
               <Label htmlFor="signin-email">Email*</Label>
               <Input
@@ -269,14 +263,12 @@ export default function Signin({
               )}
             </Field>
 
-            <Button
-              type="button"
-              className="text-xs cursor-pointer underline self-end -mt-4 -mb-2"
-              variant="link"
-              onClick={handleForgotPassword}
+            <Link
+              to={"/forgot-password"}
+              className="text-xs cursor-pointer hover:underline self-end "
             >
               Forgot password?
-            </Button>
+            </Link>
           </FieldGroup>
 
           {errors.general && (

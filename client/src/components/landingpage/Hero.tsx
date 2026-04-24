@@ -78,8 +78,8 @@ export default function Hero() {
             </Button>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8 items-center">
-            {HeroSectionHightlight.map((item) => (
-              <div className="shine-glass flex flex-col w-full sm:w-auto gap-1 border border-dashed border-neutral-400/40 p-4 rounded-lg items-center font-light">
+            {HeroSectionHightlight.map((item, index) => (
+              <div key={index} className="shine-glass flex flex-col w-full sm:w-auto gap-1 border border-dashed border-neutral-400/40 p-4 rounded-lg items-center font-light">
                 {item.icon}
                 <p className="text-orange-600 font-bold text-2xl">
                   {item.value}

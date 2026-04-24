@@ -1,8 +1,9 @@
 // src/db/debug-seed.ts
-import { db } from "../db/drizzle";
-import { roles, permissions, rolePermissions } from "../db/schema";
+import { db } from "./drizzle"; // ✅ Fixed: ./drizzle (same folder)
+import { roles, permissions, rolePermissions } from "./schema"; // ✅ Fixed: ./schema
 import { v4 as uuidv4 } from "uuid";
 import "dotenv/config";
+import { eq } from "drizzle-orm";
 
 console.log("🚀 Seeder starting...");
 console.log("Step 1: Imports loaded");
@@ -19,9 +20,9 @@ const ALL_PERMISSIONS = [
   "hr_calendar",
   "email_center",
   "team_management",
-  "user_management",
-  "workspaces",
-  "activity_logs",
+  "user_management", // ✅ Admin ONLY
+  "workspaces", // ✅ Admin ONLY
+  "activity_logs", // ✅ Everyone
 ];
 
 async function debugSeed() {
@@ -36,17 +37,14 @@ async function debugSeed() {
       testResult.length,
     );
 
-    // Don't check for existing data - just insert
-    console.log("\nStep 5: Starting fresh insert...");
-
     // Clear existing data
-    console.log("Clearing old data...");
+    console.log("\nClearing old data...");
     await db.delete(rolePermissions);
     await db.delete(permissions);
     await db.delete(roles);
     console.log("✅ Old data cleared");
 
-    // Insert permissions one by one
+    // Insert permissions
     console.log("\nInserting permissions...");
     const permIds = new Map();
     let permCount = 0;
@@ -58,7 +56,7 @@ async function debugSeed() {
       await db.insert(permissions).values({
         id,
         name: permName,
-        description: permName.toUpperCase(),
+        description: permName.replace(/_/g, " ").toUpperCase(),
         module: "core",
       });
 
@@ -67,13 +65,15 @@ async function debugSeed() {
     }
     console.log(`✅ Inserted ${permCount} permissions\n`);
 
-    // Create Admin role
+    // =========================================
+    // ✅ Admin Role - ALL permissions
+    // =========================================
     console.log("Creating Admin role...");
     const adminRoleId = uuidv4();
     await db.insert(roles).values({
       id: adminRoleId,
       name: "Admin",
-      description: "Administrator",
+      description: "Administrator with full access",
       isSystem: true,
     });
 
@@ -87,42 +87,52 @@ async function debugSeed() {
     }
     console.log(`✅ Admin role created with ${mappingCount} permissions\n`);
 
-    // Create Employee role
-    console.log("Creating Employee role...");
-    const employeeRoleId = uuidv4();
+    // =========================================
+    // ✅ HR Role - NO user_management, NO workspaces
+    // =========================================
+    console.log("Creating HR role...");
+    const hrRoleId = uuidv4();
     await db.insert(roles).values({
-      id: employeeRoleId,
-      name: "Employee",
-      description: "Employee",
+      id: hrRoleId,
+      name: "HR",
+      description: "HR Manager",
       isSystem: true,
     });
 
-    const basicPerms = [
+    const hrPerms = [
       "dashboard_access",
       "my_tasks",
-      "kanban_board",
       "calendar",
+      "hr_dashboard",
+      "attendance",
+      "leave_management",
+      "hr_calendar",
+      "email_center",
+      "team_management",
+      "activity_logs", // ✅ Added
+      // ❌ user_management REMOVED
+      // ❌ workspaces REMOVED
     ];
-    for (const permName of basicPerms) {
+    for (const permName of hrPerms) {
       const permId = permIds.get(permName);
       if (permId) {
         await db.insert(rolePermissions).values({
-          roleId: employeeRoleId,
+          roleId: hrRoleId,
           permissionId: permId,
         });
       }
     }
-    console.log(
-      `✅ Employee role created with ${basicPerms.length} permissions\n`,
-    );
+    console.log(`✅ HR role created with ${hrPerms.length} permissions\n`);
 
-    // Create Manager role
+    // =========================================
+    // ✅ Manager Role
+    // =========================================
     console.log("Creating Manager role...");
     const managerRoleId = uuidv4();
     await db.insert(roles).values({
       id: managerRoleId,
       name: "Manager",
-      description: "Manager",
+      description: "Team Manager",
       isSystem: true,
     });
 
@@ -133,6 +143,8 @@ async function debugSeed() {
       "calendar",
       "analytics",
       "team_management",
+      "activity_logs", // ✅ Added
+      // ❌ user_management REMOVED
     ];
     for (const permName of managerPerms) {
       const permId = permIds.get(permName);
@@ -147,50 +159,71 @@ async function debugSeed() {
       `✅ Manager role created with ${managerPerms.length} permissions\n`,
     );
 
-    // Create HR role
-    console.log("Creating HR role...");
-    const hrRoleId = uuidv4();
+    // =========================================
+    // ✅ Employee Role
+    // =========================================
+    console.log("Creating Employee role...");
+    const employeeRoleId = uuidv4();
     await db.insert(roles).values({
-      id: hrRoleId,
-      name: "HR",
-      description: "HR",
+      id: employeeRoleId,
+      name: "Employee",
+      description: "Regular Employee",
       isSystem: true,
     });
 
-    const hrPerms = [
+    const employeePerms = [
       "dashboard_access",
       "my_tasks",
+      "kanban_board",
       "calendar",
-      "hr_dashboard",
-      "attendance",
-      "leave_management",
-      "hr_calendar",
-      "email_center",
-      "team_management",
-      "user_management",
+      "activity_logs", // ✅ Added
     ];
-    for (const permName of hrPerms) {
+    for (const permName of employeePerms) {
       const permId = permIds.get(permName);
       if (permId) {
         await db.insert(rolePermissions).values({
-          roleId: hrRoleId,
+          roleId: employeeRoleId,
           permissionId: permId,
         });
       }
     }
-    console.log(`✅ HR role created with ${hrPerms.length} permissions\n`);
+    console.log(
+      `✅ Employee role created with ${employeePerms.length} permissions\n`,
+    );
 
+    // =========================================
     // Final verification
-    console.log("Verifying final counts...");
+    // =========================================
+    console.log("\n📊 ================================");
+    console.log("   PERMISSION MATRIX SUMMARY");
+    console.log("================================\n");
+
     const finalRoles = await db.select().from(roles);
     const finalPerms = await db.select().from(permissions);
     const finalMappings = await db.select().from(rolePermissions);
 
-    console.log("\n🎉 SEED COMPLETED SUCCESSFULLY!");
-    console.log("================================");
     console.log(`Roles created: ${finalRoles.length}`);
     console.log(`Permissions created: ${finalPerms.length}`);
     console.log(`Role-Permission mappings: ${finalMappings.length}`);
+    console.log("");
+
+    // Show each role's permissions
+    for (const role of finalRoles) {
+      const rolePermList = await db
+        .select({ name: permissions.name })
+        .from(rolePermissions)
+        .innerJoin(
+          permissions,
+          eq(rolePermissions.permissionId, permissions.id),
+        )
+        .where(eq(rolePermissions.roleId, role.id));
+
+      console.log(`📋 ${role.name} (${rolePermList.length} permissions):`);
+      console.log(`   ${rolePermList.map((p: any) => p.name).join(", ")}`);
+      console.log("");
+    }
+
+    console.log("🎉 SEED COMPLETED SUCCESSFULLY!");
     console.log("================================");
   } catch (error) {
     console.error("❌ SEED FAILED:", error);
@@ -199,6 +232,6 @@ async function debugSeed() {
   process.exit(0);
 }
 
-// Execute immediately
+// Execute
 console.log("Calling debugSeed function...");
 debugSeed();
