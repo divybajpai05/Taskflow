@@ -15,6 +15,32 @@ import { relations, sql } from "drizzle-orm";
 import { bigint } from "drizzle-orm/mysql-core";
 
 // ------------------- Tables -------------------
+// src/db/schema.ts
+
+// ✅ ADD this new table
+export const workspaceMembers = mysqlTable(
+  "workspace_members",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .default(sql`(UUID())`),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    roleId: varchar("role_id", { length: 36 })
+      .notNull()
+      .references(() => roles.id),
+    joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  },
+  (table) => [
+    unique("user_workspace_unique").on(table.userId, table.workspaceId),
+    index("workspace_members_user_idx").on(table.userId),
+    index("workspace_members_workspace_idx").on(table.workspaceId),
+  ],
+);
 
 // Core: Workspace (multi-tenant) - Very good for Taskflow
 export const workspaces = mysqlTable("workspaces", {
@@ -116,6 +142,7 @@ export const teams = mysqlTable("teams", {
     .primaryKey()
     .default(sql`(UUID())`),
   name: varchar("name", { length: 150 }).notNull(),
+  description: text("description"),
   workspaceId: varchar("workspace_id", { length: 36 })
     .notNull()
     .references(() => workspaces.id, { onDelete: "cascade" }),
@@ -203,6 +230,9 @@ export const attendance = mysqlTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => users.id),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     date: timestamp("date").notNull(),
     status: mysqlEnum("status", [
       "PRESENT",
@@ -229,6 +259,9 @@ export const leaves = mysqlTable("leaves", {
   userId: varchar("user_id", { length: 36 })
     .notNull()
     .references(() => users.id),
+  workspaceId: varchar("workspace_id", { length: 36 })
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date").notNull(),
   type: mysqlEnum("type", ["CASUAL", "SICK", "EARNED", "UNPAID"]).notNull(),
@@ -249,10 +282,13 @@ export const emailTemplates = mysqlTable("email_templates", {
   name: varchar("name", { length: 100 }).notNull(),
   subject: varchar("subject", { length: 255 }).notNull(),
   body: text("body").notNull(),
+  category: varchar("category", { length: 50 }).default("General"),
   isSystem: boolean("is_system").default(false),
   createdById: varchar("created_by_id", { length: 36 }).references(
     () => users.id,
   ),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
 });
 
 // ------------------- Relations -------------------
@@ -297,6 +333,25 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
     relationName: "TaskCreator",
   }),
 }));
+
+export const emailLogs = mysqlTable("email_logs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  workspaceId: varchar("workspace_id", { length: 36 })
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  senderId: varchar("sender_id", { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  recipientEmail: varchar("recipient_email", { length: 255 }).notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  status: varchar("status", { length: 20 }).default("sent"),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+}, (table) => [
+  index("email_logs_workspace_idx").on(table.workspaceId),
+  index("email_logs_sender_idx").on(table.senderId),
+  index("email_logs_status_idx").on(table.status),
+  index("email_logs_sent_at_idx").on(table.sentAt),
+]);
 
 // You can export everything
 export * from "./schema";

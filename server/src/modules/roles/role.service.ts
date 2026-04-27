@@ -1,8 +1,16 @@
 // src/modules/roles/role.service.ts
 import { db } from "../../db/drizzle";
-import { roles, permissions, rolePermissions } from "../../db/schema";
+import {
+  roles,
+  permissions,
+  rolePermissions,
+  workspaceMembers,
+  users,
+  userPermissions,
+} from "../../db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
+import { ActivityService } from "../activity/activity.service";
 
 export interface CreateRoleInput {
   name: string;
@@ -15,6 +23,8 @@ export interface UpdateRoleInput {
   description?: string;
   permissions?: string[]; // Array of permission IDs
 }
+
+const activityService = new ActivityService();
 
 export class RoleService {
   /**
@@ -88,7 +98,11 @@ export class RoleService {
   /**
    * Create a new custom role
    */
-  async createRole(input: CreateRoleInput) {
+  async createRole(
+    input: CreateRoleInput,
+    userId: string,
+    workspaceId: string,
+  ) {
     const { name, description, permissions: permissionIds } = input;
 
     // Check if role name already exists
@@ -135,13 +149,27 @@ export class RoleService {
       );
     }
 
+    await activityService.logActivity({
+      userId: userId,
+      workspaceId: workspaceId,
+      action: "role_created",
+      entityType: "role",
+      entityId: roleId,
+      details: { roleName: name, permissionsCount: permissionIds.length },
+    });
+
     return this.getRoleById(roleId);
   }
 
   /**
    * Update a role
    */
-  async updateRole(roleId: string, input: UpdateRoleInput) {
+  async updateRole(
+    roleId: string,
+    input: UpdateRoleInput,
+    userId: string,
+    workspaceId: string,
+  ) {
     const { name, description, permissions: permissionIds } = input;
 
     // Check if role exists
@@ -198,32 +226,65 @@ export class RoleService {
       }
     }
 
+    await activityService.logActivity({
+      userId: userId,
+      workspaceId: workspaceId,
+      action: "role_updated",
+      entityType: "role",
+      entityId: roleId,
+      details: { roleName: name || existingRole.name },
+    });
+
     return this.getRoleById(roleId);
   }
 
   /**
    * Delete a role (only non-system roles)
    */
-  async deleteRole(roleId: string) {
+  async deleteRole(roleId: string, userId: string, workspaceId: string) {
     const [role] = await db
       .select()
       .from(roles)
       .where(eq(roles.id, roleId))
       .limit(1);
 
-    if (!role) {
-      throw new Error("Role not found");
-    }
+    if (!role) throw new Error("Role not found");
+    if (role.isSystem) throw new Error("Cannot delete system roles");
 
-    if (role.isSystem) {
-      throw new Error("Cannot delete system roles");
-    }
+    const [fallbackRole] = await db
+      .select()
+      .from(roles)
+      .where(eq(roles.name, "Employee"))
+      .limit(1);
 
-    // Delete role permissions first
+    if (!fallbackRole) throw new Error("Fallback role not found");
+
+    // Reassign users
+    await db
+      .update(workspaceMembers)
+      .set({ roleId: fallbackRole.id })
+      .where(eq(workspaceMembers.roleId, roleId));
+    await db
+      .update(users)
+      .set({ roleId: fallbackRole.id })
+      .where(eq(users.roleId, roleId));
+
+    // Delete related records
     await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
-
-    // Delete the role
+    await db
+      .delete(userPermissions)
+      .where(eq(userPermissions.permissionId, roleId)); // ✅ ADD THIS
     await db.delete(roles).where(eq(roles.id, roleId));
+
+    // Log activity
+    await activityService.logActivity({
+      userId,
+      workspaceId,
+      action: "role_deleted",
+      entityType: "role",
+      entityId: roleId,
+      details: { roleName: role.name },
+    });
 
     return { success: true, message: "Role deleted successfully" };
   }

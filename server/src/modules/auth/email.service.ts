@@ -350,4 +350,43 @@ export class EmailService {
 
     await this.sendEmail(emailData);
   }
+
+  /**
+   * Send a custom email (for Email Center and other uses)
+   */
+  async sendCustomEmail(
+    to: string,
+    subject: string,
+    htmlContent: string,
+    recipientName?: string,
+    attachments?: { name: string; content: string }[],
+  ): Promise<void> {
+    const emailData: any = {
+      sender: this.sender,
+      to: [{ email: to, name: recipientName || to.split("@")[0] }],
+      subject: subject,
+      htmlContent: htmlContent,
+    };
+
+    if (attachments && attachments.length > 0) {
+      emailData.attachment = attachments.map((att) => ({
+        name: att.name,
+        content: att.content,
+      }));
+
+      // ✅ Debug: Check what we're sending
+      console.log("📎 Attachment count:", attachments.length);
+      console.log("📎 First attachment name:", attachments[0].name);
+      console.log(
+        "📎 First attachment content (first 50 chars):",
+        attachments[0].content.substring(0, 50),
+      );
+    }
+
+    // ✅ Debug: Log the full request being sent to Brevo
+    console.log("📧 Sending to Brevo - Subject:", subject);
+    console.log("📧 Has attachments:", !!emailData.attachment);
+
+    await this.sendEmail(emailData);
+  }
 }

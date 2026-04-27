@@ -52,9 +52,14 @@ export class UserController {
   async createUser(req: Request, res: Response, next: NextFunction) {
     try {
       const workspaceId = req.user!.workspaceId;
+      const createdById = req.user!.id;
       const input = req.body;
 
-      const user = await userService.createUser(input, workspaceId);
+      const user = await userService.createUser(
+        input,
+        workspaceId,
+        createdById,
+      );
 
       res.status(201).json({
         success: true,
@@ -73,10 +78,11 @@ export class UserController {
   async updateUser(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
-
       const input = req.body;
+      const updatedById = req.user!.id;
+      const workspaceId = req.user!.workspaceId;
 
-      const user = await userService.updateUser(id, input);
+      const user = await userService.updateUser(id, input, updatedById, workspaceId);
 
       res.json({
         success: true,
@@ -95,6 +101,8 @@ export class UserController {
   async deleteUser(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
+      const deletedById = req.user!.id;
+      const workspaceId = req.user!.workspaceId;
 
       // Prevent self-deletion
       if (id === req.user!.id) {
@@ -104,7 +112,7 @@ export class UserController {
         });
       }
 
-      const result = await userService.deleteUser(id);
+      const result = await userService.deleteUser(id, deletedById, workspaceId);
 
       res.json({
         success: true,

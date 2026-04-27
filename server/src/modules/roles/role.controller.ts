@@ -48,8 +48,10 @@ export class RoleController {
   async createRole(req: Request, res: Response, next: NextFunction) {
     try {
       const input = req.body;
-      const role = await roleService.createRole(input);
-
+      const userId = req.user!.id;
+      const workspaceId = req.user!.workspaceId;
+      const role = await roleService.createRole(input, userId, workspaceId);
+      
       res.status(201).json({
         success: true,
         message: "Role created successfully",
@@ -68,8 +70,10 @@ export class RoleController {
     try {
       const id = req.params.id as string;
       const input = req.body;
+      const userId = req.user!.id; 
+      const workspaceId = req.user!.workspaceId;
 
-      const role = await roleService.updateRole(id, input);
+      const role = await roleService.updateRole(id, input, userId, workspaceId);
 
       res.json({
         success: true,
@@ -88,7 +92,9 @@ export class RoleController {
   async deleteRole(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
-      const result = await roleService.deleteRole(id);
+      const userId = req.user!.id; // ✅ Get from authenticated user
+      const workspaceId = req.user!.workspaceId;
+      const result = await roleService.deleteRole(id, userId, workspaceId);
 
       res.json({
         success: true,

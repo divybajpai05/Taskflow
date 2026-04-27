@@ -114,11 +114,6 @@ export default function Signin({
 
         console.log("🔵 Store after setAuth:", useAuthStore.getState());
 
-        // // Store auth token
-        // localStorage.setItem("authToken", response.data.data.accessToken);
-
-        // // Store user data
-        // localStorage.setItem("user", JSON.stringify(response.data.data.user));
 
         toast.success("🎉 Welcome back!", {
           description: `Signed in as ${response.data.data.user.name}`,
@@ -139,8 +134,6 @@ export default function Signin({
           password: "",
         });
 
-        // Redirect to dashboard (adjust path as needed)
-        // window.location.href = "/dashboard";
         navigate("/dashboard");
       }
     } catch (error: any) {

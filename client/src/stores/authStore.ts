@@ -3,18 +3,28 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
 // Types
+// src/stores/authStore.ts
+
 export interface User {
   id: string;
   email: string;
   name: string;
   role: string;
   team: string | null;
-  workspaceId: string;
-  workspaceName: string;
   avatar: string | null;
   permissions: string[];
   avatarInitials: string;
   emailVerified: boolean;
+  
+  // ✅ NEW: Multiple workspaces support
+  workspaces: {
+    workspaceId: string;
+    workspaceName: string;
+    roleId: string;
+    roleName: string;
+  }[];
+  activeWorkspaceId: string;
+  activeWorkspaceName: string;
 }
 
 export interface AuthState {
@@ -185,8 +195,9 @@ export const useIsHydrated = () => useAuthStore((state) => state.isHydrated);
 // ✅ Computed values as selectors (NOT getters in store)
 export const useWorkspaceId = () => {
   const user = useAuthStore((state) => state.user);
-  return user?.workspaceId || null;
+  return user?.activeWorkspaceId || null;
 };
+
 
 export const useUserName = () => {
   const user = useAuthStore((state) => state.user);

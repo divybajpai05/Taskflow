@@ -19,10 +19,16 @@ apiClient.interceptors.request.use(
   (config) => {
     // Get token from Zustand store (in-memory)
     const accessToken = useAuthStore.getState().accessToken;
+      const user = useAuthStore.getState().user;
+
 
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
+
+     if (user?.activeWorkspaceId) {
+       config.headers["x-workspace-id"] = user.activeWorkspaceId;
+     }
 
     console.log("🔵 API Request:", config.method?.toUpperCase(), config.url);
     return config;

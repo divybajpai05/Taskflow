@@ -289,7 +289,7 @@ export const RoleManagement: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="text-destructive cursor-pointer"
+                          className="text-destructive cursor-pointer cursor-pointer"
                           onClick={() => setDeletingRole(role)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -431,10 +431,10 @@ export const RoleManagement: React.FC = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-destructive"
+              className="bg-destructive cursor-pointer"
             >
               Delete
             </AlertDialogAction>

@@ -12,11 +12,14 @@ import {
   tasks,
   emailTemplates,
   workspaces,
+  workspaceMembers,
+  teams,
 } from "../../db/schema";
 import { eq, and, like, or, sql } from "drizzle-orm";
 import argon2 from "argon2";
 import { v4 as uuidv4 } from "uuid";
 import { EmailService } from "../auth/email.service";
+import { ActivityService } from "../activity/activity.service";
 
 export interface CreateUserInput {
   name: string;
@@ -42,6 +45,7 @@ export interface UserPermissionInput {
 }
 
 const emailService = new EmailService();
+const activityService = new ActivityService();
 
 export class UserService {
   /**
@@ -106,30 +110,31 @@ export class UserService {
         name: users.name,
         email: users.email,
         phone: users.phone,
-        roleId: users.roleId,
+        roleId: workspaceMembers.roleId,
         role: roles.name,
         team: users.team,
         teamId: users.teamId,
         isActive: users.isActive,
         emailVerified: users.emailVerified,
         avatar: users.avatar,
-        workspaceId: users.workspaceId,
+        workspaceId: workspaceMembers.workspaceId,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
         lastLoginAt: users.lastLoginAt,
       })
-      .from(users)
-      .innerJoin(roles, eq(users.roleId, roles.id))
+      .from(workspaceMembers)
+      .innerJoin(users, eq(workspaceMembers.userId, users.id))
+      .innerJoin(roles, eq(workspaceMembers.roleId, roles.id))
       .where(
         search
           ? and(
-              eq(users.workspaceId, workspaceId),
+              eq(workspaceMembers.workspaceId, workspaceId),
               or(
                 like(users.name, `%${search}%`),
                 like(users.email, `%${search}%`),
               ),
             )
-          : eq(users.workspaceId, workspaceId),
+          : eq(workspaceMembers.workspaceId, workspaceId),
       );
 
     // Get permissions for each user
@@ -173,20 +178,21 @@ export class UserService {
         name: users.name,
         email: users.email,
         phone: users.phone,
-        roleId: users.roleId,
+        roleId: workspaceMembers.roleId,
         role: roles.name,
         team: users.team,
         teamId: users.teamId,
         isActive: users.isActive,
         emailVerified: users.emailVerified,
         avatar: users.avatar,
-        workspaceId: users.workspaceId,
+        workspaceId: workspaceMembers.workspaceId,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
         lastLoginAt: users.lastLoginAt,
       })
       .from(users)
-      .innerJoin(roles, eq(users.roleId, roles.id))
+      .innerJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
+      .innerJoin(roles, eq(workspaceMembers.roleId, roles.id))
       .where(eq(users.id, userId))
       .limit(1);
 
@@ -208,7 +214,7 @@ export class UserService {
       isActive: user.isActive,
       emailVerified: user.emailVerified,
       avatar: user.avatar,
-      avatarInitials: this.getInitials(user.name), // ✅ Generated
+      avatarInitials: this.getInitials(user.name),
       workspaceId: user.workspaceId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -221,75 +227,232 @@ export class UserService {
   /**
    * Create a new user
    */
-  async createUser(input: CreateUserInput, workspaceId: string) {
+  // async createUser(
+  //   input: CreateUserInput,
+  //   workspaceId: string,
+  //   createdById?: string,
+  // ) {
+  //   const { name, email, password, roleId, team, phone } = input;
+
+  //   // Check if email already exists
+  //   const existingUser = await db
+  //     .select()
+  //     .from(users)
+  //     .where(eq(users.email, email))
+  //     .limit(1);
+
+  //   if (existingUser.length > 0) {
+  //     throw new Error("User with this email already exists");
+  //   }
+
+  //   // Validate role exists
+  //   const [role] = await db
+  //     .select()
+  //     .from(roles)
+  //     .where(eq(roles.id, roleId))
+  //     .limit(1);
+
+  //   if (!role) {
+  //     throw new Error("Invalid role");
+  //   }
+
+  //   // Hash password
+  //   const hashedPassword = await argon2.hash(password, {
+  //     type: argon2.argon2id,
+  //     memoryCost: 19456,
+  //     timeCost: 2,
+  //     parallelism: 1,
+  //   });
+
+  //   const userId = uuidv4();
+
+  //   // Create user
+  //   await db.insert(users).values({
+  //     id: userId,
+  //     email,
+  //     name,
+  //     phone: phone || null,
+  //     password: hashedPassword,
+  //     roleId: roleId,
+  //     workspaceId: workspaceId,
+  //     team: team || null,
+  //     isActive: true,
+  //     emailVerified: true,
+  //   });
+
+  //   // Add user to workspace with role
+  //   await db.insert(workspaceMembers).values({
+  //     userId: userId,
+  //     workspaceId: workspaceId,
+  //     roleId: roleId,
+  //   });
+
+  //   await activityService.logActivity({
+  //     userId: createdById || userId,
+  //     workspaceId: workspaceId,
+  //     action: "user_created",
+  //     entityType: "user",
+  //     entityId: userId,
+  //     details: {
+  //       userName: name,
+  //       userEmail: email,
+  //       role: role.name,
+  //     },
+  //   });
+
+  //   // Send onboarding email
+  //   try {
+  //     const [workspace] = await db
+  //       .select({ name: workspaces.name })
+  //       .from(workspaces)
+  //       .where(eq(workspaces.id, workspaceId))
+  //       .limit(1);
+
+  //     await emailService.sendOnboardingEmail(
+  //       email,
+  //       name,
+  //       password,
+  //       workspace?.name || "Your Workspace",
+  //     );
+  //   } catch (error) {
+  //     console.error("Failed to send onboarding email:", error);
+  //   }
+
+  //   return this.getUserById(userId);
+  // }
+
+  async createUser(
+    input: CreateUserInput,
+    workspaceId: string,
+    createdById?: string,
+  ) {
     const { name, email, password, roleId, team, phone } = input;
 
-    // Check if email already exists
-    const existingUser = await db
+    // Check if user already exists
+    const [existingUser] = await db
       .select()
       .from(users)
       .where(eq(users.email, email))
       .limit(1);
 
-    if (existingUser.length > 0) {
-      throw new Error("User with this email already exists");
+    let userId: string;
+    let isNewUser = false;
+
+    // ✅ Look up team ID if team name is provided
+    let teamId: string | null = null;
+    if (team) {
+      const [teamRecord] = await db
+        .select({ id: teams.id })
+        .from(teams)
+        .where(and(eq(teams.name, team), eq(teams.workspaceId, workspaceId)))
+        .limit(1);
+      teamId = teamRecord?.id || null;
     }
 
-    // Validate role exists
-    const [role] = await db
-      .select()
-      .from(roles)
-      .where(eq(roles.id, roleId))
-      .limit(1);
-
-    if (!role) {
-      throw new Error("Invalid role");
-    }
-
-    // Hash password
-    const hashedPassword = await argon2.hash(password, {
-      type: argon2.argon2id,
-      memoryCost: 19456,
-      timeCost: 2,
-      parallelism: 1,
-    });
-
-    const userId = uuidv4();
-
-    await db.insert(users).values({
-      id: userId,
-      email,
-      name,
-      phone: phone || null,
-      password: hashedPassword,
-      roleId,
-      workspaceId,
-      team: team || null,
-      isActive: true,
-      emailVerified: true, // Admin-created users are pre-verified
-    });
-
-    // ✅ Send onboarding email (don't fail if email fails)
-    try {
-      // Get workspace name
-      const [workspace] = await db
-        .select({ name: workspaces.name })
-        .from(workspaces)
-        .where(eq(workspaces.id, workspaceId))
+    if (existingUser) {
+      // ✅ User exists - check if already in this workspace
+      const [existingMember] = await db
+        .select()
+        .from(workspaceMembers)
+        .where(
+          and(
+            eq(workspaceMembers.userId, existingUser.id),
+            eq(workspaceMembers.workspaceId, workspaceId),
+          ),
+        )
         .limit(1);
 
-      const workspaceName = workspace?.name || "Your Workspace";
+      if (existingMember) {
+        throw new Error("User is already a member of this workspace");
+      }
 
-      await emailService.sendOnboardingEmail(
+      // ✅ Reuse existing user
+      userId = existingUser.id;
+
+      // ✅ Update team info on existing user if provided
+      if (team !== undefined) {
+        await db
+          .update(users)
+          .set({ team: team || null, teamId })
+          .where(eq(users.id, userId));
+      }
+    } else {
+      // ✅ Create new user
+      isNewUser = true;
+
+      if (!password) {
+        throw new Error("Password is required for new users");
+      }
+
+      const hashedPassword = await argon2.hash(password, {
+        type: argon2.argon2id,
+        memoryCost: 19456,
+        timeCost: 2,
+        parallelism: 1,
+      });
+
+      userId = uuidv4();
+
+      await db.insert(users).values({
+        id: userId,
         email,
         name,
-        password, // Send the original password (before hashing)
-        workspaceName,
-      );
-      console.log(`✅ Onboarding email sent to ${email}`);
-    } catch (error) {
-      console.error("Failed to send onboarding email:", error);
-      // Don't throw - user creation should still succeed
+        phone: phone || null,
+        password: hashedPassword,
+        roleId: roleId,
+        workspaceId: workspaceId,
+        team: team || null,
+        teamId: teamId, // ✅ Set teamId
+        isActive: true,
+        emailVerified: true,
+      });
+    }
+
+    // ✅ Add user to new workspace
+    await db.insert(workspaceMembers).values({
+      userId: userId,
+      workspaceId: workspaceId,
+      roleId: roleId,
+    });
+
+    // Update role in users table if changing
+    if (existingUser && roleId) {
+      await db.update(users).set({ roleId }).where(eq(users.id, userId));
+    }
+
+    // Log activity
+    await activityService.logActivity({
+      userId: createdById || userId,
+      workspaceId: workspaceId,
+      action: isNewUser ? "user_created" : "user_added_to_workspace",
+      entityType: "user",
+      entityId: userId,
+      details: {
+        userName: name || existingUser?.name,
+        userEmail: email,
+        isNewUser,
+        team: team || null,
+      },
+    });
+
+    // Send onboarding email only for new users
+    if (isNewUser) {
+      try {
+        const [workspace] = await db
+          .select({ name: workspaces.name })
+          .from(workspaces)
+          .where(eq(workspaces.id, workspaceId))
+          .limit(1);
+
+        await emailService.sendOnboardingEmail(
+          email,
+          name,
+          password!,
+          workspace?.name || "Your Workspace",
+        );
+      } catch (error) {
+        console.error("Failed to send onboarding email:", error);
+      }
     }
 
     return this.getUserById(userId);
@@ -298,7 +461,12 @@ export class UserService {
   /**
    * Update user details
    */
-  async updateUser(userId: string, input: UpdateUserInput) {
+  async updateUser(
+    userId: string,
+    input: UpdateUserInput,
+    updatedById: string,
+    workspaceId: string,
+  ) {
     const { name, email, roleId, team, phone, isActive } = input;
 
     // Check if user exists
@@ -343,21 +511,62 @@ export class UserService {
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email;
     if (roleId !== undefined) updateData.roleId = roleId;
-    if (team !== undefined) updateData.team = team;
     if (phone !== undefined) updateData.phone = phone;
     if (isActive !== undefined) updateData.isActive = isActive;
 
+    // ✅ If team name is provided, find the team ID
+    if (team !== undefined) {
+      if (team) {
+        const [teamRecord] = await db
+          .select({ id: teams.id, name: teams.name })
+          .from(teams)
+          .where(
+            and(
+              eq(teams.name, team),
+              eq(teams.workspaceId, existingUser.workspaceId),
+            ),
+          )
+          .limit(1);
+
+        if (teamRecord) {
+          updateData.team = teamRecord.name;
+          updateData.teamId = teamRecord.id; // ✅ Set teamId
+        } else {
+          // Team not found, set to null
+          updateData.team = null;
+          updateData.teamId = null;
+        }
+      } else {
+        // Team explicitly set to empty/null
+        updateData.team = null;
+        updateData.teamId = null; // ✅ Clear teamId
+      }
+    }
+
     await db.update(users).set(updateData).where(eq(users.id, userId));
+
+    // Log activity
+    await activityService.logActivity({
+      userId: updatedById,
+      workspaceId: workspaceId,
+      action: "user_updated",
+      entityType: "user",
+      entityId: userId,
+      details: {
+        userName: name || existingUser.name,
+        userEmail: email || existingUser.email,
+        changes: input,
+      },
+    });
 
     return this.getUserById(userId);
   }
-
   // src/modules/users/user.service.ts
 
   /**
    * Delete user and all related records
    */
-  async deleteUser(userId: string) {
+  async deleteUser(userId: string, deletedById: string, workspaceId: string) {
     const [user] = await db
       .select()
       .from(users)
@@ -406,6 +615,15 @@ export class UserService {
 
     // ✅ Finally delete the user
     await db.delete(users).where(eq(users.id, userId));
+
+    await activityService.logActivity({
+      userId: deletedById,
+      workspaceId: workspaceId,
+      action: "user_deleted",
+      entityType: "user",
+      entityId: userId,
+      details: { userName: user.name, userEmail: user.email },
+    });
 
     return { success: true, message: "User deleted successfully" };
   }

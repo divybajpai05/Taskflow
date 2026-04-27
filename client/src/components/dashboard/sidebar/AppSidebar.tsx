@@ -135,10 +135,6 @@ const Admin = [
     icon: ShieldCheck,
     permission: "role_management",
   },
-];
-
-// ✅ NEW: General Section (Available to everyone)
-const General = [
   {
     title: "Activity Logs",
     url: "activity",
@@ -152,7 +148,6 @@ export const allDashboardRoutes = [
   ...Application,
   ...HrManagement,
   ...Admin,
-  ...General,
 ];
 
 // =========================================
@@ -188,13 +183,6 @@ export function AppSidebar() {
   const filteredAdmin = user
     ? Admin.filter((item) => !item.permission || hasPermission(item.permission))
     : Admin;
-
-  // ✅ General section - filtered like others
-  const filteredGeneral = user
-    ? General.filter(
-        (item) => !item.permission || hasPermission(item.permission),
-      )
-    : General;
 
   const handleLogout = async () => {
     try {
@@ -317,27 +305,6 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {filteredHrManagement.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <Link to={`/dashboard/${item.url}`}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* ✅ General Section - Activity Logs (Everyone) */}
-        {filteredGeneral.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>General</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {filteredGeneral.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <Link to={`/dashboard/${item.url}`}>

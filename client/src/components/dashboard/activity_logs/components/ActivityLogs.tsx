@@ -1,12 +1,6 @@
 // components/hr/ActivityLog.tsx
-import React, { useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import React, { useState, useEffect, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,27 +20,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import {
-  Download,
-  Search,
-  Filter,
-  Calendar,
-  User,
-  LogIn,
-  CheckSquare,
-  Edit,
-  Trash2,
-  Plus,
-} from "lucide-react";
+import { Download, Search, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import apiClient from "@/api/client";
 
 // Types
 interface ActivityLog {
@@ -60,71 +37,6 @@ interface ActivityLog {
   taskTitle?: string;
   ipAddress: string;
 }
-
-// Mock Data
-const INITIAL_LOGS: ActivityLog[] = [
-  {
-    id: "log1",
-    timestamp: "2026-04-16 10:45",
-    user: "Prashant Thakur",
-    userEmail: "prashant@taskflow.com",
-    eventType: "login",
-    action: "User Login",
-    details: "Successful login from browser",
-    ipAddress: "182.68.12.45",
-  },
-  {
-    id: "log2",
-    timestamp: "2026-04-16 10:32",
-    user: "Neha Gupta",
-    userEmail: "neha@taskflow.com",
-    eventType: "task",
-    action: "Task Status Changed",
-    details: "Todo → In Progress",
-    taskTitle: "Design new landing page",
-    ipAddress: "122.171.45.78",
-  },
-  {
-    id: "log3",
-    timestamp: "2026-04-16 09:15",
-    user: "Vikram Rao",
-    userEmail: "vikram@taskflow.com",
-    eventType: "task",
-    action: "Task Created",
-    details: "New task added",
-    taskTitle: "Implement payment gateway",
-    ipAddress: "103.45.67.89",
-  },
-  {
-    id: "log4",
-    timestamp: "2026-04-15 18:22",
-    user: "Priya Patel",
-    userEmail: "priya@taskflow.com",
-    eventType: "delete",
-    action: "Task Deleted",
-    details: "Task permanently removed",
-    taskTitle: "Old marketing campaign",
-    ipAddress: "49.36.12.78",
-  },
-  {
-    id: "log5",
-    timestamp: "2026-04-15 14:10",
-    user: "Prashant Thakur",
-    userEmail: "prashant@taskflow.com",
-    eventType: "login",
-    action: "User Login",
-    details: "Login from mobile app",
-    ipAddress: "182.68.12.45",
-  },
-];
-
-const EVENT_TYPES = [
-  { value: "all", label: "All Events" },
-  { value: "login", label: "Login" },
-  { value: "task", label: "Task Activity" },
-  { value: "delete", label: "Delete" },
-  { value: "create", label: "Create" },
-];
 
 const getEventBadge = (type: string) => {
   switch (type) {
@@ -146,38 +58,122 @@ const getEventBadge = (type: string) => {
           Delete
         </Badge>
       );
+    case "create":
+      return (
+        <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+          Create
+        </Badge>
+      );
+    case "update":
+      return (
+        <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300">
+          Update
+        </Badge>
+      );
+    case "verify":
+      return (
+        <Badge className="bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300">
+          Verify
+        </Badge>
+      );
     default:
       return <Badge variant="secondary">Activity</Badge>;
   }
 };
 
 export const ActivityLog: React.FC = () => {
-  const [logs, setLogs] = useState<ActivityLog[]>(INITIAL_LOGS);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedEventType, setSelectedEventType] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const filteredLogs = logs.filter((log) => {
-    const matchesSearch =
-      log.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (log.taskTitle &&
-        log.taskTitle.toLowerCase().includes(searchTerm.toLowerCase()));
+  const [eventTypes, setEventTypes] = useState<
+    { value: string; label: string }[]
+  >([{ value: "all", label: "All Events" }]);
 
-    const matchesType =
-      selectedEventType === "all" || log.eventType === selectedEventType;
+  const fetchEventTypes = useCallback(async () => {
+    try {
+      const response = await apiClient.get("/activities/event-types");
+      if (response.data.success) {
+        setEventTypes(response.data.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch event types:", error);
+    }
+  }, []);
 
-    return matchesSearch && matchesType;
-  });
+  useEffect(() => {
+    fetchEventTypes();
+  }, [fetchEventTypes]);
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams();
+      if (searchTerm) params.append("search", searchTerm);
+      if (selectedEventType !== "all")
+        params.append("eventType", selectedEventType);
+      if (dateFrom) params.append("dateFrom", dateFrom);
+      if (dateTo) params.append("dateTo", dateTo);
+      params.append("limit", "100");
+
+      const response = await apiClient.get(`/activities?${params.toString()}`);
+      if (response.data.success) {
+        setLogs(response.data.data);
+        setTotal(response.data.total);
+      }
+    } catch (error: any) {
+      console.error("Failed to fetch activity logs:", error);
+      toast.error("Failed to load activity logs");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchTerm, selectedEventType, dateFrom, dateTo]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
 
   const exportCSV = () => {
-    alert("✅ Activity log exported as CSV (demo)");
-    // In real app: generate and download CSV
+    if (logs.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    const headers = [
+      "Timestamp",
+      "User",
+      "Email",
+      "Action",
+      "Details",
+      "IP Address",
+    ];
+    const rows = logs.map((log) => [
+      log.timestamp,
+      log.user,
+      log.userEmail,
+      log.action,
+      log.details,
+      log.ipAddress,
+    ]);
+
+    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `activity-log-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+
+    toast.success("CSV exported successfully");
   };
 
   const exportPDF = () => {
-    alert("✅ Activity log exported as PDF (demo)");
-    // In real app: generate and download PDF
+    toast.info("PDF export will be available soon");
   };
 
   return (
@@ -206,18 +202,16 @@ export const ActivityLog: React.FC = () => {
       <Card>
         <CardContent className="">
           <div className="flex flex-col items-center md:flex-row gap-4">
-            {/* Search */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by user or task..."
+                placeholder="Search by user or action..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
 
-            {/* Event Type */}
             <div className="w-full md:w-56">
               <Select
                 value={selectedEventType}
@@ -227,7 +221,7 @@ export const ActivityLog: React.FC = () => {
                   <SelectValue placeholder="Event Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {EVENT_TYPES.map((type) => (
+                  {eventTypes.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
                       {type.label}
                     </SelectItem>
@@ -236,7 +230,6 @@ export const ActivityLog: React.FC = () => {
               </Select>
             </div>
 
-            {/* Date From */}
             <div className="w-full md:w-44">
               <Label className="text-xs text-muted-foreground">From</Label>
               <Input
@@ -246,7 +239,6 @@ export const ActivityLog: React.FC = () => {
               />
             </div>
 
-            {/* Date To */}
             <div className="w-full md:w-44">
               <Label className="text-xs text-muted-foreground">To</Label>
               <Input
@@ -262,57 +254,67 @@ export const ActivityLog: React.FC = () => {
       {/* Activity Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activities ({filteredLogs.length})</CardTitle>
+          <CardTitle>Recent Activities ({total})</CardTitle>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[calc(100vh-380px)]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Details</TableHead>
-                  <TableHead>IP Address</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="font-mono text-sm text-muted-foreground">
-                      {log.timestamp}
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{log.user}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {log.userEmail}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>{getEventBadge(log.eventType)}</TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{log.action}</p>
-                        {log.taskTitle && (
-                          <p className="text-xs text-muted-foreground">
-                            {log.taskTitle}
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          {log.details}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {log.ipAddress}
-                    </TableCell>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              No activity logs found
+            </div>
+          ) : (
+            <ScrollArea className="h-[calc(100vh-380px)]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Timestamp</TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Details</TableHead>
+                    <TableHead>IP Address</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <ScrollBar orientation="vertical" />
-          </ScrollArea>
+                </TableHeader>
+                <TableBody>
+                  {logs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="font-mono text-sm text-muted-foreground whitespace-nowrap">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{log.user}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {log.userEmail}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>{getEventBadge(log.eventType)}</TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{log.action}</p>
+                          {log.taskTitle && (
+                            <p className="text-xs text-muted-foreground">
+                              {log.taskTitle}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            {log.details}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {log.ipAddress}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="vertical" />
+            </ScrollArea>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -289,6 +289,7 @@ export default function App() {
                   "workspaces",
                   "user_management",
                   "role_management",
+                  "activity_logs",
                 ]}
                 requireAll={false}
               />
@@ -318,17 +319,16 @@ export default function App() {
                 </Suspense>
               }
             />
-          </Route>
 
-          {/* Activity Logs - All logged-in users */}
-          <Route
-            path="activity"
-            element={
-              <Suspense fallback={<ActivityLogLoader />}>
-                <ActivityLogsPage />
-              </Suspense>
-            }
-          />
+            <Route
+              path="activity"
+              element={
+                <Suspense fallback={<ActivityLogLoader />}>
+                  <ActivityLogsPage />
+                </Suspense>
+              }
+            />
+          </Route>
 
           {/* Settings - All logged-in users */}
           <Route

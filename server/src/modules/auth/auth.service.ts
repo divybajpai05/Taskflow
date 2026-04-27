@@ -8,6 +8,7 @@ import {
   rolePermissions,
   userPermissions,
   activityLogs,
+  workspaceMembers,
 } from "../../db/schema";
 import { eq } from "drizzle-orm";
 import argon2 from "argon2";
@@ -202,69 +203,6 @@ export class AuthService {
   /**
    * Verify email with token
    */
-  // async verifyEmail(
-  //   token: string,
-  // ): Promise<{ success: boolean; message: string }> {
-  //   // Find user with this token
-  //   const userResult = await db
-  //     .select()
-  //     .from(users)
-  //     .where(eq(users.emailVerificationToken, token))
-  //     .limit(1);
-
-  //   const user = userResult[0];
-
-  //   if (!user) {
-  //     throw new Error("Invalid or expired verification token");
-  //   }
-
-  //   // Check if token is expired
-  //   if (
-  //     user.emailVerificationExpires &&
-  //     new Date() > user.emailVerificationExpires
-  //   ) {
-  //     throw new Error(
-  //       "Verification token has expired. Please request a new one.",
-  //     );
-  //   }
-
-  //   // Update user as verified
-  //   await db
-  //     .update(users)
-  //     .set({
-  //       emailVerified: true,
-  //       emailVerificationToken: null,
-  //       emailVerificationExpires: null,
-  //     })
-  //     .where(eq(users.id, user.id));
-
-  //   // Send welcome email
-  //   try {
-  //     await emailService.sendWelcomeEmail(user.email, user.name);
-  //   } catch (error) {
-  //     console.error("Failed to send welcome email:", error);
-  //   }
-
-  //   // Log activity
-  //   await db.insert(activityLogs).values({
-  //     userId: user.id,
-  //     workspaceId: user.workspaceId,
-  //     action: "email_verified",
-  //     entityType: "user",
-  //     entityId: user.id,
-  //   });
-
-  //   return {
-  //     success: true,
-  //     message: "Email verified successfully! You can now log in.",
-  //   };
-  // }
-
-  // src/modules/auth/auth.service.ts
-
-  /**
-   * Verify email with token
-   */
   async verifyEmail(
     token: string,
   ): Promise<{ success: boolean; message: string }> {
@@ -437,7 +375,7 @@ export class AuthService {
 
     if (!user.isActive) {
       throw new Error("Account is deactivated. Please contact administrator.");
-    }
+    } 
 
     // Check if email is verified
     if (!user.emailVerified) {
@@ -487,25 +425,41 @@ export class AuthService {
       ipAddress: ipAddress || null,
     });
 
+    const userWorkspaces = await db
+      .select({
+        workspaceId: workspaceMembers.workspaceId,
+        workspaceName: workspaces.name,
+        roleId: workspaceMembers.roleId,
+        roleName: roles.name,
+      })
+      .from(workspaceMembers)
+      .innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
+      .innerJoin(roles, eq(workspaceMembers.roleId, roles.id))
+      .where(eq(workspaceMembers.userId, user.id));
+
+    const activeWorkspace = userWorkspaces[0];
+
     return {
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.roleName,
+        role: activeWorkspace?.roleName || "",
         team: user.team,
-        workspaceId: user.workspaceId,
-        workspaceName: user.workspaceName,
+        workspaceId: activeWorkspace?.workspaceId || "",
+        workspaceName: activeWorkspace?.workspaceName || "",
+        workspaces: userWorkspaces, // ✅ ADD: all workspaces
+        activeWorkspaceId: activeWorkspace?.workspaceId || "", // ✅ ADD
+        activeWorkspaceName: activeWorkspace?.workspaceName || "", // ✅ ADD
         avatar: user.avatar,
         permissions: userWithPerms.permissions,
         avatarInitials,
         emailVerified: user.emailVerified,
       },
-      tokens: {
-        accessToken: tokens.accessToken,
-      },
+      tokens: { accessToken: tokens.accessToken },
       refreshToken: tokens.refreshToken,
     };
+
   }
 
   /**
@@ -625,11 +579,22 @@ export class AuthService {
       throw new Error("Invalid refresh token");
     }
 
+    // ✅ Get user's workspaces to include in new token
+    const userWorkspaces = await db
+      .select({
+        workspaceId: workspaceMembers.workspaceId,
+        roleId: workspaceMembers.roleId,
+      })
+      .from(workspaceMembers)
+      .where(eq(workspaceMembers.userId, user.id));
+
+    const activeWorkspace = userWorkspaces[0];
+
     const tokens = generateTokens({
       userId: user.id,
       email: user.email,
-      workspaceId: user.workspaceId,
-      roleId: user.roleId,
+      workspaceId: activeWorkspace?.workspaceId || user.workspaceId || "",
+      roleId: activeWorkspace?.roleId || user.roleId || "",
     });
 
     return { accessToken: tokens.accessToken };

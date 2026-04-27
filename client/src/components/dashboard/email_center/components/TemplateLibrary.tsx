@@ -1,5 +1,5 @@
 // components/email/TemplateLibrary.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -48,34 +48,12 @@ import {
   Mail,
   Users,
   Briefcase,
+  Loader2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { EmailTemplate } from "@/types/types";
-
-// Mock Data - Replace with API call
-const INITIAL_TEMPLATES: EmailTemplate[] = [
-  {
-    id: "1",
-    name: "Leave Approval",
-    subject: "Your Leave Request has been Approved",
-    body: "Dear {{employee_name}},\n\nYour leave request from {{start_date}} to {{end_date}} has been approved.\n\nBest,\nHR Team",
-    category: "HR",
-  },
-  {
-    id: "2",
-    name: "Meeting Reminder",
-    subject: "Reminder: Upcoming HR Meeting",
-    body: "Hi Team,\n\nThis is a reminder about our meeting tomorrow at {{meeting_time}}.\n\nThanks.",
-    category: "General",
-  },
-  {
-    id: "3",
-    name: "Welcome New Hire",
-    subject: "Welcome to the Team, {{employee_name}}!",
-    body: "Dear {{employee_name}},\n\nWelcome aboard! We are excited to have you join the team. Your first day will be {{start_date}}.\n\nPlease let us know if you have any questions.\n\nBest regards,\nHR Team",
-    category: "HR",
-  },
-];
+import apiClient from "@/api/client";
+import { toast } from "sonner";
 
 // Icon mapping based on template name/category
 const getTemplateIcon = (template: EmailTemplate) => {
@@ -113,8 +91,10 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
   manageMode = false,
   compact = false,
 }) => {
-  const [templates, setTemplates] =
-    useState<EmailTemplate[]>(INITIAL_TEMPLATES);
+  // ==================== STATE ====================
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(
@@ -123,10 +103,45 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
   const [deletingTemplate, setDeletingTemplate] =
     useState<EmailTemplate | null>(null);
   const [formData, setFormData] = useState<TemplateFormData>(initialFormData);
+  const [formErrors, setFormErrors] = useState<{
+    name?: string;
+    subject?: string;
+    body?: string;
+  }>({});
 
+  // ==================== DATA FETCHING ====================
+  const fetchTemplates = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiClient.get("/email/templates");
+      if (response.data.success) {
+        setTemplates(response.data.data);
+      }
+    } catch (error) {
+      toast.error("Failed to load templates");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTemplates();
+  }, [fetchTemplates]);
+
+  // ==================== FORM HELPERS ====================
   const resetForm = () => {
     setFormData(initialFormData);
+    setFormErrors({});
     setEditingTemplate(null);
+  };
+
+  const validateForm = (): boolean => {
+    const errors: { name?: string; subject?: string; body?: string } = {};
+    if (!formData.name.trim()) errors.name = "Template name is required";
+    if (!formData.subject.trim()) errors.subject = "Subject is required";
+    if (!formData.body.trim()) errors.body = "Email body is required";
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleOpenCreate = () => {
@@ -140,40 +155,34 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
       name: template.name,
       subject: template.subject,
       body: template.body,
-      category: template.category,
+      category: template.category as "HR" | "Admin" | "General",
     });
     setIsDialogOpen(true);
   };
 
-  const handleSave = () => {
-    if (!formData.name || !formData.subject || !formData.body) {
-      alert("Please fill in all fields");
-      return;
-    }
+  // ==================== CRUD OPERATIONS ====================
+  const handleSave = async () => {
+    if (!validateForm()) return;
 
-    if (editingTemplate) {
-      // Update existing template
-      setTemplates((prev) =>
-        prev.map((t) =>
-          t.id === editingTemplate.id
-            ? {
-                ...t,
-                ...formData,
-              }
-            : t,
-        ),
-      );
-    } else {
-      // Create new template
-      const newTemplate: EmailTemplate = {
-        id: `template-${Date.now()}`,
-        ...formData,
-      };
-      setTemplates((prev) => [...prev, newTemplate]);
+    setIsSubmitting(true);
+    try {
+      if (editingTemplate) {
+        // Update
+        await apiClient.put(`/email/templates/${editingTemplate.id}`, formData);
+        toast.success("Template updated!");
+      } else {
+        // Create
+        await apiClient.post("/email/templates", formData);
+        toast.success("Template created!");
+      }
+      setIsDialogOpen(false);
+      resetForm();
+      fetchTemplates();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to save template");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsDialogOpen(false);
-    resetForm();
   };
 
   const handleDeleteClick = (template: EmailTemplate) => {
@@ -181,123 +190,151 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
     setIsDeleteDialogOpen(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (deletingTemplate) {
-      setTemplates((prev) => prev.filter((t) => t.id !== deletingTemplate.id));
+  const handleConfirmDelete = async () => {
+    if (!deletingTemplate) return;
+
+    setIsSubmitting(true);
+    try {
+      await apiClient.delete(`/email/templates/${deletingTemplate.id}`);
+      toast.success("Template deleted!");
+      setIsDeleteDialogOpen(false);
+      setDeletingTemplate(null);
+      fetchTemplates();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to delete template");
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsDeleteDialogOpen(false);
-    setDeletingTemplate(null);
   };
 
+  // ==================== DISPLAY ====================
   const displayTemplates = compact ? templates.slice(0, 3) : templates;
 
+  // ==================== RENDER ====================
   return (
     <>
       <ScrollArea className={compact ? "h-[300px] pr-4" : "h-[500px] pr-4"}>
-        <div className="space-y-3">
-          {displayTemplates.map((template) => {
-            const Icon = getTemplateIcon(template);
-            return (
-              <Card
-                key={template.id}
-                className="cursor-pointer hover:bg-accent/50 transition-colors"
-              >
-                <CardHeader className={compact ? "p-3 pb-2" : "p-4 pb-2"}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-md bg-primary/10 p-1">
-                        <Icon className="h-4 w-4 text-primary" />
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : displayTemplates.length === 0 ? (
+          <div className="text-center py-8">
+            <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">
+              {manageMode
+                ? "No templates yet. Create your first one!"
+                : "No templates available"}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {displayTemplates.map((template) => {
+              const Icon = getTemplateIcon(template);
+              return (
+                <Card
+                  key={template.id}
+                  className="hover:bg-accent/20 transition-colors"
+                >
+                  <CardHeader className={compact ? "p-3 pb-2" : "p-4 pb-2"}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="rounded-md bg-primary/10 p-1">
+                          <Icon className="h-4 w-4 text-primary" />
+                        </div>
+                        <CardTitle
+                          className={compact ? "text-sm" : "text-base"}
+                        >
+                          {template.name}
+                        </CardTitle>
                       </div>
-                      <CardTitle className={compact ? "text-sm" : "text-base"}>
-                        {template.name}
-                      </CardTitle>
+                      <Badge variant="outline">{template.category}</Badge>
                     </div>
-                    <Badge variant="outline">{template.category}</Badge>
-                  </div>
-                  <CardDescription
-                    className={`line-clamp-1 ${compact ? "text-xs pt-1" : "pt-1"}`}
-                  >
-                    Subject: {template.subject}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className={compact ? "p-3 pt-0" : "p-4 pt-0"}>
-                  {!compact && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
-                      {template.body.substring(0, 60)}...
-                    </p>
-                  )}
-                  {!manageMode && onSelectTemplate && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => onSelectTemplate(template)}
+                    <CardDescription
+                      className={`line-clamp-1 ${compact ? "text-xs pt-1" : "pt-1"}`}
                     >
-                      Use Template
-                    </Button>
-                  )}
-                  {manageMode && (
-                    <div className="flex gap-2">
+                      Subject: {template.subject}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className={compact ? "p-3 pt-0" : "p-4 pt-0"}>
+                    {!compact && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
+                        {template.body.substring(0, 60)}...
+                      </p>
+                    )}
+                    {!manageMode && onSelectTemplate && (
                       <Button
-                        variant="ghost"
+                        variant="secondary"
                         size="sm"
-                        onClick={() => handleOpenEdit(template)}
+                        className="w-full cursor-pointer"
+                        onClick={() => onSelectTemplate(template)}
                       >
-                        <Pencil className="h-4 w-4 mr-1" />
-                        Edit
+                        Use Template
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
-                        onClick={() => handleDeleteClick(template)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Delete
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+                    )}
+                    {manageMode && (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenEdit(template)}
+                        >
+                          <Pencil className="h-4 w-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => handleDeleteClick(template)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
 
-          {/* Create New Template Button */}
-          {manageMode ? (
+        {/* Create New Template Button */}
+        {manageMode ? (
+          <Button
+            variant="outline"
+            className="w-full justify-start gap-2 cursor-pointer mt-3"
+            onClick={handleOpenCreate}
+          >
+            <Plus className="h-4 w-4" />
+            Create New Template...
+          </Button>
+        ) : (
+          !compact && (
             <Button
               variant="outline"
-              className="w-full justify-start gap-2"
+              className="w-full justify-start gap-2 cursor-pointer mt-3"
               onClick={handleOpenCreate}
             >
-              <Plus className="h-4 w-4" />
+              <FileText className="h-4 w-4" />
               Create New Template...
             </Button>
-          ) : (
-            !compact && (
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-2"
-                onClick={handleOpenCreate}
-              >
-                <FileText className="h-4 w-4" />
-                Create New Template...
-              </Button>
-            )
-          )}
+          )
+        )}
 
-          {compact && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full text-muted-foreground"
-            >
-              View all templates →
-            </Button>
-          )}
-        </div>
+        {compact && templates.length > 3 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-muted-foreground mt-1"
+          >
+            View all templates →
+          </Button>
+        )}
       </ScrollArea>
 
-      {/* Create/Edit Template Dialog - FIXED HEIGHT */}
+      {/* ====================== CREATE/EDIT DIALOG ====================== */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl flex flex-col">
           <DialogHeader className="flex-shrink-0">
@@ -314,15 +351,22 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
           <ScrollArea className="h-[70vh]">
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Template Name</Label>
+                <Label htmlFor="name">Template Name*</Label>
                 <Input
                   id="name"
                   placeholder="e.g., Leave Approval"
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, name: e.target.value });
+                    if (formErrors.name)
+                      setFormErrors({ ...formErrors, name: undefined });
+                  }}
+                  disabled={isSubmitting}
+                  className={formErrors.name ? "border-red-500" : ""}
                 />
+                {formErrors.name && (
+                  <p className="text-xs text-red-500">{formErrors.name}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -332,6 +376,7 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
                   onValueChange={(value: "HR" | "Admin" | "General") =>
                     setFormData({ ...formData, category: value })
                   }
+                  disabled={isSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
@@ -345,20 +390,27 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="subject">Email Subject</Label>
+                <Label htmlFor="subject">Email Subject*</Label>
                 <Input
                   id="subject"
                   placeholder="e.g., Your Leave Request has been Approved"
                   value={formData.subject}
-                  onChange={(e) =>
-                    setFormData({ ...formData, subject: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, subject: e.target.value });
+                    if (formErrors.subject)
+                      setFormErrors({ ...formErrors, subject: undefined });
+                  }}
+                  disabled={isSubmitting}
+                  className={formErrors.subject ? "border-red-500" : ""}
                 />
+                {formErrors.subject && (
+                  <p className="text-xs text-red-500">{formErrors.subject}</p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="body">
-                  Email Body
+                  Email Body*
                   <span className="ml-2 text-xs text-muted-foreground">
                     Use {"{{variable_name}}"} for dynamic content
                   </span>
@@ -366,12 +418,18 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
                 <Textarea
                   id="body"
                   placeholder="Write your email template here..."
-                  className="min-h-[150px] max-h-[250px] font-mono text-sm"
+                  className={`min-h-[150px] max-h-[250px] font-mono text-sm ${formErrors.body ? "border-red-500" : ""}`}
                   value={formData.body}
-                  onChange={(e) =>
-                    setFormData({ ...formData, body: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, body: e.target.value });
+                    if (formErrors.body)
+                      setFormErrors({ ...formErrors, body: undefined });
+                  }}
+                  disabled={isSubmitting}
                 />
+                {formErrors.body && (
+                  <p className="text-xs text-red-500">{formErrors.body}</p>
+                )}
               </div>
 
               {/* Available Variables Hint */}
@@ -381,6 +439,8 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
                   {[
                     "{{employee_name}}",
                     "{{start_date}}",
+                    "{{email}}",
+                    "{{team}}",
                     "{{end_date}}",
                     "{{meeting_time}}",
                     "{{department}}",
@@ -413,17 +473,31 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
                 resetForm();
               }}
               className="cursor-pointer"
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button className="cursor-pointer" onClick={handleSave}>
-              {editingTemplate ? "Save Changes" : "Create Template"}
+            <Button
+              className="cursor-pointer"
+              onClick={handleSave}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : editingTemplate ? (
+                "Save Changes"
+              ) : (
+                "Create Template"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* ====================== DELETE DIALOG ====================== */}
       <AlertDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
@@ -437,12 +511,22 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isSubmitting}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isSubmitting}
             >
-              Delete
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

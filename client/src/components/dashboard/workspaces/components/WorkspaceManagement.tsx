@@ -1,5 +1,5 @@
 // components/settings/WorkspaceManagement.tsx
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -30,7 +30,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   Plus,
   Pencil,
@@ -39,8 +38,15 @@ import {
   Users,
   Calendar,
   Search,
-  List,
+  Loader2,
+  CheckCircle2,
+  ArrowRight,
+  ExternalLink,
 } from "lucide-react";
+import { toast } from "sonner";
+import apiClient from "@/api/client";
+import { useAuthStore } from "@/stores";
+import { useNavigate } from "react-router-dom";
 
 // Types
 interface Workspace {
@@ -51,42 +57,25 @@ interface Workspace {
   taskCount: number;
   createdAt: string;
   isActive: boolean;
+  ownerId: string;
+  updatedAt?: string;
 }
 
-// Mock Data (Replace with API later)
-const INITIAL_WORKSPACES: Workspace[] = [
-  {
-    id: "ws1",
-    name: "Acme Corp",
-    description: "Main workspace for all teams in Acme Corporation",
-    memberCount: 124,
-    taskCount: 874,
-    createdAt: "2025-08-15",
-    isActive: true,
-  },
-  {
-    id: "ws2",
-    name: "StartupHub",
-    description: "Innovation and product development workspace",
-    memberCount: 47,
-    taskCount: 342,
-    createdAt: "2025-11-03",
-    isActive: true,
-  },
-  {
-    id: "ws3",
-    name: "Freelance Projects",
-    description: "Personal workspace for client projects",
-    memberCount: 12,
-    taskCount: 89,
-    createdAt: "2026-01-20",
-    isActive: true,
-  },
-];
-
 export const WorkspaceManagement: React.FC = () => {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>(INITIAL_WORKSPACES);
+  const navigate = useNavigate();
+  const { user, updateUser } = useAuthStore();
+
+  // ==================== STATE ====================
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [switchingWorkspace, setSwitchingWorkspace] = useState<string | null>(
+    null,
+  );
+
+  // Current active workspace
+  const currentWorkspaceId = user?.activeWorkspaceId;
 
   // Dialog states
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -95,74 +84,184 @@ export const WorkspaceManagement: React.FC = () => {
     null,
   );
 
-  // Separate form states to prevent data leakage
+  // Form states
   const [createForm, setCreateForm] = useState({ name: "", description: "" });
+  const [createErrors, setCreateErrors] = useState<{ name?: string }>({});
   const [editForm, setEditForm] = useState({ name: "", description: "" });
+  const [editErrors, setEditErrors] = useState<{ name?: string }>({});
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(
     null,
   );
 
+  // ==================== DATA FETCHING ====================
+  const fetchWorkspaces = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiClient.get("/workspaces");
+      if (response.data.success) {
+        setWorkspaces(response.data.data);
+      }
+    } catch (error: any) {
+      toast.error("Failed to load workspaces");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWorkspaces();
+  }, [fetchWorkspaces]);
+
+  // ==================== FILTERING ====================
   const filteredWorkspaces = workspaces.filter((ws) =>
     ws.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  const resetCreateForm = () => setCreateForm({ name: "", description: "" });
-  const resetEditForm = () => setEditForm({ name: "", description: "" });
+  // ==================== FORM HELPERS ====================
+  const resetCreateForm = () => {
+    setCreateForm({ name: "", description: "" });
+    setCreateErrors({});
+  };
 
-  const handleCreateWorkspace = () => {
+  const resetEditForm = () => {
+    setEditForm({ name: "", description: "" });
+    setEditErrors({});
+    setEditingWorkspace(null);
+  };
+
+  const validateCreateForm = (): boolean => {
+    const errors: { name?: string } = {};
     if (!createForm.name.trim()) {
-      alert("Workspace name is required");
+      errors.name = "Workspace name is required";
+    } else if (createForm.name.trim().length < 2) {
+      errors.name = "Name must be at least 2 characters";
+    } else if (createForm.name.trim().length > 100) {
+      errors.name = "Name must be less than 100 characters";
+    }
+    setCreateErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateEditForm = (): boolean => {
+    const errors: { name?: string } = {};
+    if (!editForm.name.trim()) {
+      errors.name = "Workspace name is required";
+    } else if (editForm.name.trim().length < 2) {
+      errors.name = "Name must be at least 2 characters";
+    }
+    setEditErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // ==================== CRUD OPERATIONS ====================
+  const handleCreateWorkspace = async () => {
+    if (!validateCreateForm()) return;
+
+    setIsSubmitting(true);
+    try {
+      const response = await apiClient.post("/workspaces", {
+        name: createForm.name.trim(),
+        description: createForm.description.trim(),
+      });
+
+      if (response.data.success) {
+        toast.success("Workspace created successfully!", {
+          description: `"${createForm.name}" is ready to use.`,
+        });
+        setIsCreateDialogOpen(false);
+        resetCreateForm();
+        fetchWorkspaces();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to create workspace");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditWorkspace = async () => {
+    if (!editingWorkspace || !validateEditForm()) return;
+
+    setIsSubmitting(true);
+    try {
+      await apiClient.put(`/workspaces/${editingWorkspace.id}`, {
+        name: editForm.name.trim(),
+        description: editForm.description.trim(),
+      });
+
+      toast.success("Workspace updated!");
+      setIsEditDialogOpen(false);
+      resetEditForm();
+      fetchWorkspaces();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to update workspace");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteWorkspace = async () => {
+    if (!deletingWorkspace) return;
+
+    // Prevent deleting current workspace
+    if (deletingWorkspace.id === currentWorkspaceId) {
+      toast.error("Cannot delete active workspace", {
+        description: "Switch to another workspace first.",
+      });
+      setDeletingWorkspace(null);
       return;
     }
 
-    const newWorkspace: Workspace = {
-      id: `ws${Date.now()}`,
-      name: createForm.name,
-      description: createForm.description,
-      memberCount: 1,
-      taskCount: 0,
-      createdAt: new Date().toISOString().split("T")[0],
-      isActive: true,
-    };
-
-    setWorkspaces((prev) => [...prev, newWorkspace]);
-    setIsCreateDialogOpen(false);
-    resetCreateForm();
+    setIsSubmitting(true);
+    try {
+      await apiClient.delete(`/workspaces/${deletingWorkspace.id}`);
+      toast.success("Workspace deleted!");
+      setDeletingWorkspace(null);
+      fetchWorkspaces();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to delete workspace");
+      setDeletingWorkspace(null);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleEditWorkspace = () => {
-    if (!editingWorkspace || !editForm.name.trim()) return;
+  const handleSwitchWorkspace = async (
+    workspaceId: string,
+    workspaceName: string,
+  ) => {
+    const user = useAuthStore.getState().user;
+    if (!user) return;
 
-    setWorkspaces((prev) =>
-      prev.map((ws) =>
-        ws.id === editingWorkspace.id
-          ? { ...ws, name: editForm.name, description: editForm.description }
-          : ws,
-      ),
-    );
+    // ✅ Update Zustand store
+    useAuthStore.getState().updateUser({
+      activeWorkspaceId: workspaceId,
+      activeWorkspaceName: workspaceName,
+    });
 
-    setIsEditDialogOpen(false);
-    setEditingWorkspace(null);
-    resetEditForm();
-  };
-
-  const handleDeleteWorkspace = () => {
-    if (!deletingWorkspace) return;
-    setWorkspaces((prev) =>
-      prev.filter((ws) => ws.id !== deletingWorkspace.id),
-    );
-    setDeletingWorkspace(null);
+    toast.success(`Switched to "${workspaceName}"`);
+    navigate("/dashboard");
   };
 
   const openEditDialog = (workspace: Workspace) => {
     setEditingWorkspace(workspace);
     setEditForm({
       name: workspace.name,
-      description: workspace.description,
+      description: workspace.description || "",
     });
     setIsEditDialogOpen(true);
   };
 
+  // ==================== FORMAT HELPERS ====================
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  // ==================== RENDER ====================
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -179,6 +278,7 @@ export const WorkspaceManagement: React.FC = () => {
           className="cursor-pointer"
           onClick={() => setIsCreateDialogOpen(true)}
           size="lg"
+          disabled={isSubmitting}
         >
           <Plus className="mr-2 h-5 w-5" />
           Create New Workspace
@@ -197,65 +297,134 @@ export const WorkspaceManagement: React.FC = () => {
       </div>
 
       {/* Workspaces Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredWorkspaces.length === 0 ? (
-          <div className="col-span-full text-center py-16">
-            <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium">No workspaces found</p>
-            <p className="text-muted-foreground">Try a different search term</p>
-          </div>
-        ) : (
-          filteredWorkspaces.map((workspace) => (
-            <Card key={workspace.id} className="hover:shadow-md transition-all">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-xl">{workspace.name}</CardTitle>
-                  <Badge variant={workspace.isActive ? "default" : "secondary"}>
-                    {workspace.isActive ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
-                <CardDescription className="line-clamp-2">
-                  {workspace.description || "No description provided"}
-                </CardDescription>
-              </CardHeader>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : filteredWorkspaces.length === 0 ? (
+        <div className="col-span-full text-center py-16">
+          <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-lg font-medium">
+            {searchTerm
+              ? "No workspaces match your search"
+              : "No workspaces yet"}
+          </p>
+          <p className="text-muted-foreground">
+            {searchTerm
+              ? "Try a different search term"
+              : "Create your first workspace to get started"}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredWorkspaces.map((workspace) => {
+            const isActive = workspace.id === currentWorkspaceId;
+            const isSwitching = switchingWorkspace === workspace.id;
 
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    {workspace.memberCount} members
+            return (
+              <Card
+                key={workspace.id}
+                className={`hover:shadow-md transition-all relative ${
+                  isActive ? "ring-2 ring-primary border-primary" : ""
+                }`}
+              >
+                {/* Active Indicator */}
+                {isActive && (
+                  <div className="absolute top-4 left-[60%]">
+                    <Badge className="bg-primary text-primary-foreground gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Current
+                    </Badge>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {workspace.taskCount} tasks
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    {workspace.createdAt}
-                  </div>
-                </div>
+                )}
 
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1 cursor-pointer"
-                    onClick={() => openEditDialog(workspace)}
-                  >
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="text-destructive hover:bg-destructive/10 cursor-pointer"
-                    onClick={() => setDeletingWorkspace(workspace)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <CardTitle className="text-xl">{workspace.name}</CardTitle>
+                    <Badge
+                      variant={workspace.isActive ? "default" : "secondary"}
+                    >
+                      {workspace.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+                  <CardDescription className="line-clamp-2">
+                    {workspace.description || "No description provided"}
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  {/* Stats */}
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <Users className="h-4 w-4" />
+                      <span>{workspace.memberCount} members</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span>{workspace.taskCount} tasks</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-4 w-4" />
+                      <span>{formatDate(workspace.createdAt)}</span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-2">
+                    {/* Switch Workspace Button */}
+                    {!isActive && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="flex-1 cursor-pointer gap-1"
+                        onClick={() => handleSwitchWorkspace(workspace.id, workspace.name)}
+                        disabled={isSwitching || isSubmitting}
+                      >
+                        {isSwitching ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <ArrowRight className="h-4 w-4" />
+                        )}
+                        Switch
+                      </Button>
+                    )}
+
+                    {/* Edit Button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="cursor-pointer"
+                      onClick={() => openEditDialog(workspace)}
+                      disabled={isSubmitting}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+
+                    {/* Delete Button */}
+                    {!isActive && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10 cursor-pointer"
+                        onClick={() => setDeletingWorkspace(workspace)}
+                        disabled={isSubmitting}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Current Workspace Label */}
+                  {isActive && (
+                    <p className="text-xs text-center text-muted-foreground">
+                      You are currently in this workspace
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {/* ====================== CREATE WORKSPACE DIALOG ====================== */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -269,27 +438,35 @@ export const WorkspaceManagement: React.FC = () => {
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Workspace Name</Label>
+              <Label htmlFor="create-name">Workspace Name*</Label>
               <Input
-                id="name"
+                id="create-name"
                 value={createForm.name}
-                onChange={(e) =>
-                  setCreateForm({ ...createForm, name: e.target.value })
-                }
-                placeholder="e.g. My Company"
+                onChange={(e) => {
+                  setCreateForm({ ...createForm, name: e.target.value });
+                  if (createErrors.name) setCreateErrors({});
+                }}
+                placeholder="e.g. Acme Corp"
+                disabled={isSubmitting}
+                className={createErrors.name ? "border-red-500" : ""}
+                autoFocus
               />
+              {createErrors.name && (
+                <p className="text-xs text-red-500">{createErrors.name}</p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description (Optional)</Label>
+              <Label htmlFor="create-description">Description (Optional)</Label>
               <Textarea
-                id="description"
+                id="create-description"
                 value={createForm.description}
                 onChange={(e) =>
                   setCreateForm({ ...createForm, description: e.target.value })
                 }
                 placeholder="What is this workspace for?"
                 rows={3}
+                disabled={isSubmitting}
               />
             </div>
           </div>
@@ -302,11 +479,19 @@ export const WorkspaceManagement: React.FC = () => {
                 setIsCreateDialogOpen(false);
                 resetCreateForm();
               }}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button className="cursor-pointer" onClick={handleCreateWorkspace}>
-              Create Workspace
+            <Button className="cursor-pointer" onClick={handleCreateWorkspace} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Workspace"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -322,25 +507,32 @@ export const WorkspaceManagement: React.FC = () => {
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Workspace Name</Label>
+              <Label htmlFor="edit-name">Workspace Name*</Label>
               <Input
-                id="name"
+                id="edit-name"
                 value={editForm.name}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, name: e.target.value })
-                }
+                onChange={(e) => {
+                  setEditForm({ ...editForm, name: e.target.value });
+                  if (editErrors.name) setEditErrors({});
+                }}
+                disabled={isSubmitting}
+                className={editErrors.name ? "border-red-500" : ""}
               />
+              {editErrors.name && (
+                <p className="text-xs text-red-500">{editErrors.name}</p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="edit-description">Description</Label>
               <Textarea
-                id="description"
+                id="edit-description"
                 value={editForm.description}
                 onChange={(e) =>
                   setEditForm({ ...editForm, description: e.target.value })
                 }
                 rows={3}
+                disabled={isSubmitting}
               />
             </div>
           </div>
@@ -351,14 +543,21 @@ export const WorkspaceManagement: React.FC = () => {
               variant="outline"
               onClick={() => {
                 setIsEditDialogOpen(false);
-                setEditingWorkspace(null);
                 resetEditForm();
               }}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button className="cursor-pointer" onClick={handleEditWorkspace}>
-              Save Changes
+            <Button className="cursor-pointer" onClick={handleEditWorkspace} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -381,12 +580,22 @@ export const WorkspaceManagement: React.FC = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isSubmitting}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteWorkspace}
               className="bg-destructive cursor-pointer text-destructive-foreground hover:bg-destructive/90"
+              disabled={isSubmitting}
             >
-              Delete Workspace
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Workspace"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

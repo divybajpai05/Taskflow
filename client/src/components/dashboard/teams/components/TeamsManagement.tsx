@@ -1,5 +1,5 @@
 // components/hr/TeamsManagement.tsx
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -31,7 +31,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Users, UserPlus, Search, X } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Users,
+  UserPlus,
+  Search,
+  X,
+  Loader2,
+} from "lucide-react";
+import apiClient from "@/api/client";
+import { toast } from "sonner";
 
 // ─────────────────────────────────────────────────────────────
 // TYPES
@@ -48,115 +59,21 @@ interface Team {
   name: string;
   description: string;
   members: TeamMember[];
+  memberCount: number;
   createdAt: string;
+  color?: string;
 }
-
-// ─────────────────────────────────────────────────────────────
-// MOCK DATA
-// ─────────────────────────────────────────────────────────────
-const INITIAL_TEAMS: Team[] = [
-  {
-    id: "1",
-    name: "Engineering",
-    description: "Software development, backend, frontend & DevOps",
-    members: [
-      {
-        id: "u1",
-        name: "Alice Chen",
-        initials: "AC",
-        email: "alice@taskflow.com",
-      },
-      {
-        id: "u2",
-        name: "Bob Smith",
-        initials: "BS",
-        email: "bob@taskflow.com",
-      },
-      {
-        id: "u3",
-        name: "Carol Williams",
-        initials: "CW",
-        email: "carol@taskflow.com",
-      },
-    ],
-    createdAt: "2026-03-15",
-  },
-  {
-    id: "2",
-    name: "Marketing",
-    description: "Brand strategy, content & digital campaigns",
-    members: [
-      {
-        id: "u4",
-        name: "David Lee",
-        initials: "DL",
-        email: "david@taskflow.com",
-      },
-      {
-        id: "u5",
-        name: "Emma Davis",
-        initials: "ED",
-        email: "emma@taskflow.com",
-      },
-    ],
-    createdAt: "2026-02-28",
-  },
-  {
-    id: "3",
-    name: "HR & People",
-    description: "Talent acquisition, culture & employee experience",
-    members: [
-      {
-        id: "u6",
-        name: "Prashant Thakur",
-        initials: "PT",
-        email: "prashant@taskflow.com",
-      },
-      {
-        id: "u7",
-        name: "Fatima Khan",
-        initials: "FK",
-        email: "fatima@taskflow.com",
-      },
-    ],
-    createdAt: "2026-04-01",
-  },
-];
-
-const MOCK_AVAILABLE_USERS: TeamMember[] = [
-  {
-    id: "u8",
-    name: "Rahul Sharma",
-    initials: "RS",
-    email: "rahul@taskflow.com",
-  },
-  { id: "u9", name: "Neha Gupta", initials: "NG", email: "neha@taskflow.com" },
-  {
-    id: "u10",
-    name: "Vikram Rao",
-    initials: "VR",
-    email: "vikram@taskflow.com",
-  },
-  {
-    id: "u11",
-    name: "Priya Patel",
-    initials: "PP",
-    email: "priya@taskflow.com",
-  },
-  {
-    id: "u12",
-    name: "Arjun Singh",
-    initials: "AS",
-    email: "arjun@taskflow.com",
-  },
-];
 
 // ─────────────────────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────────────────────
 export const TeamsManagement: React.FC = () => {
-  const [teams, setTeams] = useState<Team[]>(INITIAL_TEAMS);
+  // ==================== STATE ====================
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<TeamMember[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Dialog states
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -165,68 +82,145 @@ export const TeamsManagement: React.FC = () => {
   const [teamForMembers, setTeamForMembers] = useState<Team | null>(null);
 
   // Form data
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-  });
-
-  // Member management helpers
+  const [formData, setFormData] = useState({ name: "", description: "" });
+  const [formErrors, setFormErrors] = useState<{ name?: string }>({});
   const [memberSearchTerm, setMemberSearchTerm] = useState("");
 
+  // ==================== DATA FETCHING ====================
+  const fetchTeams = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiClient.get("/teams");
+      if (response.data.success) setTeams(response.data.data);
+    } catch (error) {
+      toast.error("Failed to load teams");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const fetchAvailableUsers = useCallback(async () => {
+    try {
+      const response = await apiClient.get("/teams/available-users");
+      if (response.data.success) {
+        setAvailableUsers(
+          response.data.data.map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            initials: u.name
+              .split(" ")
+              .map((n: string) => n[0])
+              .join("")
+              .toUpperCase()
+              .slice(0, 2),
+          })),
+        );
+      }
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTeams();
+    fetchAvailableUsers();
+  }, [fetchTeams, fetchAvailableUsers]);
+
+  // ==================== FILTERS ====================
   const filteredTeams = teams.filter((team) =>
     team.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
+  console.log(filteredTeams)
+
+  // ==================== FORM HELPERS ====================
   const resetForm = () => {
     setFormData({ name: "", description: "" });
+    setFormErrors({});
     setEditingTeam(null);
   };
 
-  const handleCreateTeam = () => {
-    if (!formData.name.trim()) return alert("Team name is required");
-
-    const newTeam: Team = {
-      id: `team-${Date.now()}`,
-      name: formData.name,
-      description: formData.description,
-      members: [],
-      createdAt: new Date().toISOString().split("T")[0],
-    };
-
-    setTeams((prev) => [...prev, newTeam]);
-    setIsCreateDialogOpen(false);
-    resetForm();
+  const validateForm = (): boolean => {
+    const errors: { name?: string } = {};
+    if (!formData.name.trim()) errors.name = "Team name is required";
+    else if (formData.name.trim().length < 2)
+      errors.name = "Name must be at least 2 characters";
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
-  const handleEditTeam = () => {
-    if (!editingTeam || !formData.name.trim()) return;
+  // ==================== CRUD OPERATIONS ====================
+  const handleCreateTeam = async () => {
+    if (!validateForm()) return;
 
-    setTeams((prev) =>
-      prev.map((t) =>
-        t.id === editingTeam.id
-          ? { ...t, name: formData.name, description: formData.description }
-          : t,
-      ),
-    );
+    setIsSubmitting(true);
+    try {
+      const response = await apiClient.post("/teams", {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+      });
 
-    setEditingTeam(null);
-    resetForm();
+      if (response.data.success) {
+        toast.success("Team created successfully!");
+        setIsCreateDialogOpen(false);
+        resetForm();
+        fetchTeams();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to create team");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDeleteTeam = () => {
+  const handleEditTeam = async () => {
+    if (!editingTeam || !validateForm()) return;
+
+    setIsSubmitting(true);
+    try {
+      await apiClient.put(`/teams/${editingTeam.id}`, {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+      });
+
+      toast.success("Team updated!");
+      setEditingTeam(null);
+      resetForm();
+      fetchTeams();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to update team");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteTeam = async () => {
     if (!deletingTeam) return;
-    setTeams((prev) => prev.filter((t) => t.id !== deletingTeam.id));
-    setDeletingTeam(null);
+
+    setIsSubmitting(true);
+    try {
+      await apiClient.delete(`/teams/${deletingTeam.id}`);
+      toast.success("Team deleted!");
+      setDeletingTeam(null);
+      fetchTeams();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to delete team");
+      setDeletingTeam(null);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleOpenEdit = (team: Team) => {
     setEditingTeam(team);
-    setFormData({ name: team.name, description: team.description });
+    setFormData({ name: team.name, description: team.description || "" });
   };
 
-  // Member management
+  // ==================== MEMBER MANAGEMENT ====================
   const getAvailableUsers = (team: Team) => {
-    return MOCK_AVAILABLE_USERS.filter(
+    if (!team) return [];
+    return availableUsers.filter(
       (user) => !team.members.some((m) => m.id === user.id),
     );
   };
@@ -237,47 +231,61 @@ export const TeamsManagement: React.FC = () => {
       )
     : [];
 
-  const handleAddMember = (user: TeamMember) => {
+  const handleAddMember = async (user: TeamMember) => {
     if (!teamForMembers) return;
 
-    setTeams((prev) =>
-      prev.map((team) =>
-        team.id === teamForMembers.id
-          ? { ...team, members: [...team.members, user] }
-          : team,
-      ),
-    );
+    try {
+      await apiClient.post(`/teams/${teamForMembers.id}/members`, {
+        userId: user.id,
+      });
 
-    // Update the currently open dialog team
-    setTeamForMembers((prev) =>
-      prev ? { ...prev, members: [...prev.members, user] } : null,
-    );
+      toast.success(`${user.name} added to team!`);
+
+      // ✅ Fetch fresh teams list
+      const teamsResponse = await apiClient.get("/teams");
+      if (teamsResponse.data.success) {
+        setTeams(teamsResponse.data.data);
+
+        // ✅ Update the open dialog with fresh data
+        const updatedTeam = teamsResponse.data.data.find(
+          (t: Team) => t.id === teamForMembers.id,
+        );
+        if (updatedTeam) {
+          setTeamForMembers(updatedTeam);
+        }
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to add member");
+    }
   };
 
-  const handleRemoveMember = (memberId: string) => {
+  const handleRemoveMember = async (memberId: string) => {
     if (!teamForMembers) return;
 
-    setTeams((prev) =>
-      prev.map((team) =>
-        team.id === teamForMembers.id
-          ? {
-              ...team,
-              members: team.members.filter((m) => m.id !== memberId),
-            }
-          : team,
-      ),
-    );
+    try {
+      await apiClient.delete(`/teams/${teamForMembers.id}/members/${memberId}`);
 
-    setTeamForMembers((prev) =>
-      prev
-        ? {
-            ...prev,
-            members: prev.members.filter((m) => m.id !== memberId),
-          }
-        : null,
-    );
+      toast.success("Member removed from team!");
+
+      // ✅ Fetch fresh teams list
+      const teamsResponse = await apiClient.get("/teams");
+      if (teamsResponse.data.success) {
+        setTeams(teamsResponse.data.data);
+
+        // ✅ Update the open dialog with fresh data
+        const updatedTeam = teamsResponse.data.data.find(
+          (t: Team) => t.id === teamForMembers.id,
+        );
+        if (updatedTeam) {
+          setTeamForMembers(updatedTeam);
+        }
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to remove member");
+    }
   };
 
+  // ==================== RENDER ====================
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -290,7 +298,11 @@ export const TeamsManagement: React.FC = () => {
             Create teams, manage members and organize your workforce
           </p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)} size="lg" className="cursor-pointer">
+        <Button
+          onClick={() => setIsCreateDialogOpen(true)}
+          size="lg"
+          className="cursor-pointer"
+        >
           <Plus className="mr-2 h-5 w-5" />
           Create New Team
         </Button>
@@ -308,51 +320,61 @@ export const TeamsManagement: React.FC = () => {
       </div>
 
       {/* Teams Grid */}
-      <ScrollArea className="h-[calc(100vh-240px)]">
-        {filteredTeams.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Users className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium">No teams found</p>
-            <p className="text-muted-foreground">
-              Try a different search term or create a new team
-            </p>
-          </div>
-        ) : (
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : filteredTeams.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Users className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-lg font-medium">
+            {searchTerm ? "No teams match your search" : "No teams yet"}
+          </p>
+          <p className="text-muted-foreground">
+            {searchTerm
+              ? "Try a different search term"
+              : "Create your first team to get started"}
+          </p>
+        </div>
+      ) : (
+        <ScrollArea className="h-[calc(100vh-240px)]">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
             {filteredTeams.map((team) => (
               <Card
                 key={team.id}
-                className="hover:shadow-md transition-all cursor-pointer group"
+                className="hover:shadow-md transition-all group"
               >
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <CardTitle className="text-xl">{team.name}</CardTitle>
                     <Badge variant="secondary" className="text-xs">
-                      {team.members.length} members
+                      {team.memberCount || team.members?.length || 0} members
                     </Badge>
                   </div>
                   <CardDescription className="line-clamp-2">
-                    {team.description}
+                    {team.description || "No description"}
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-4">
                   {/* Member avatars */}
-                  <div className="flex -space-x-3">
-                    {team.members.slice(0, 5).map((member) => (
-                      <div
-                        key={member.id}
-                        className="w-8 h-8 rounded-full bg-primary/10 border-2 border-background flex items-center justify-center text-xs font-semibold ring-2 ring-background"
-                      >
-                        {member.initials}
-                      </div>
-                    ))}
-                    {team.members.length > 5 && (
-                      <div className="w-8 h-8 rounded-full bg-muted border-2 border-background flex items-center justify-center text-xs font-medium">
-                        +{team.members.length - 5}
-                      </div>
-                    )}
-                  </div>
+                  {team.members && team.members.length > 0 && (
+                    <div className="flex -space-x-3">
+                      {team.members.slice(0, 5).map((member) => (
+                        <div
+                          key={member.id}
+                          className="w-8 h-8 rounded-full bg-primary/10 border-2 border-background flex items-center justify-center text-xs font-semibold ring-2 ring-background"
+                        >
+                          {member.initials}
+                        </div>
+                      ))}
+                      {team.members.length > 5 && (
+                        <div className="w-8 h-8 rounded-full bg-muted border-2 border-background flex items-center justify-center text-xs font-medium">
+                          +{team.members.length - 5}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex gap-2">
                     <Button
@@ -396,9 +418,9 @@ export const TeamsManagement: React.FC = () => {
               </Card>
             ))}
           </div>
-        )}
-        <ScrollBar orientation="vertical" />
-      </ScrollArea>
+          <ScrollBar orientation="vertical" />
+        </ScrollArea>
+      )}
 
       {/* ====================== CREATE / EDIT DIALOG ====================== */}
       <Dialog
@@ -425,15 +447,22 @@ export const TeamsManagement: React.FC = () => {
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Team Name</Label>
+              <Label htmlFor="name">Team Name*</Label>
               <Input
                 id="name"
                 value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value });
+                  if (formErrors.name) setFormErrors({});
+                }}
                 placeholder="e.g. Product Design"
+                disabled={isSubmitting}
+                className={formErrors.name ? "border-red-500" : ""}
+                autoFocus
               />
+              {formErrors.name && (
+                <p className="text-xs text-red-500">{formErrors.name}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -446,6 +475,7 @@ export const TeamsManagement: React.FC = () => {
                 }
                 placeholder="What does this team do?"
                 rows={3}
+                disabled={isSubmitting}
               />
             </div>
           </div>
@@ -459,11 +489,25 @@ export const TeamsManagement: React.FC = () => {
                 resetForm();
               }}
               className="cursor-pointer"
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button className="cursor-pointer" onClick={editingTeam ? handleEditTeam : handleCreateTeam}>
-              {editingTeam ? "Save Changes" : "Create Team"}
+            <Button
+              className="cursor-pointer"
+              onClick={editingTeam ? handleEditTeam : handleCreateTeam}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : editingTeam ? (
+                "Save Changes"
+              ) : (
+                "Create Team"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -484,12 +528,22 @@ export const TeamsManagement: React.FC = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isSubmitting}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteTeam}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isSubmitting}
             >
-              Delete Team
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Team"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -507,7 +561,8 @@ export const TeamsManagement: React.FC = () => {
               {teamForMembers?.name}
             </DialogTitle>
             <DialogDescription>
-              {teamForMembers?.members.length} members • Manage team membership
+              {teamForMembers?.members?.length || 0} members • Manage team
+              membership
             </DialogDescription>
           </DialogHeader>
 
@@ -519,32 +574,38 @@ export const TeamsManagement: React.FC = () => {
                   Current Members
                 </h3>
                 <div className="space-y-3">
-                  {teamForMembers?.members.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center justify-between bg-muted/50 rounded-lg p-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold">
-                          {member.initials}
-                        </div>
-                        <div>
-                          <p className="font-medium">{member.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {member.email}
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive cursor-pointer"
-                        onClick={() => handleRemoveMember(member.id)}
+                  {teamForMembers?.members?.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4 text-center">
+                      No members yet
+                    </p>
+                  ) : (
+                    teamForMembers?.members.map((member) => (
+                      <div
+                        key={member.id}
+                        className="flex items-center justify-between bg-muted/50 rounded-lg p-3"
                       >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold">
+                            {member.initials}
+                          </div>
+                          <div>
+                            <p className="font-medium">{member.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {member.email}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive cursor-pointer"
+                          onClick={() => handleRemoveMember(member.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -572,7 +633,6 @@ export const TeamsManagement: React.FC = () => {
                     filteredAvailableUsers.map((user) => (
                       <div
                         key={user.id}
-                        onClick={() => handleAddMember(user)}
                         className="flex items-center gap-3 p-3 hover:bg-accent rounded-lg cursor-pointer transition-colors"
                       >
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold">
@@ -584,7 +644,12 @@ export const TeamsManagement: React.FC = () => {
                             {user.email}
                           </p>
                         </div>
-                        <Button size="sm" variant="outline" className="cursor-pointer">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="cursor-pointer"
+                          onClick={() => handleAddMember(user)}
+                        >
                           <UserPlus className="h-4 w-4" />
                         </Button>
                       </div>
@@ -597,7 +662,11 @@ export const TeamsManagement: React.FC = () => {
           </ScrollArea>
 
           <DialogFooter className="flex-shrink-0 border-t pt-4">
-            <Button className="cursor-pointer" variant="outline" onClick={() => setTeamForMembers(null)}>
+            <Button
+              className="cursor-pointer"
+              variant="outline"
+              onClick={() => setTeamForMembers(null)}
+            >
               Close
             </Button>
           </DialogFooter>

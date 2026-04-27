@@ -18,80 +18,42 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, ChevronsUpDown, User, Mail, Search, X } from "lucide-react";
+import {
+  Check,
+  ChevronsUpDown,
+  User,
+  Mail,
+  Search,
+  X,
+  Loader2,
+} from "lucide-react";
 import type { EmailRecipient } from "@/types/types";
-
-// Mock data
-const EMPLOYEES: EmailRecipient[] = [
-  {
-    id: "1",
-    name: "Rahul Sharma",
-    email: "rahul.s@company.com",
-    type: "employee",
-    department: "Engineering",
-  },
-  {
-    id: "2",
-    name: "Priya Patel",
-    email: "priya.p@company.com",
-    type: "employee",
-    department: "HR",
-  },
-  {
-    id: "3",
-    name: "Alex Johnson",
-    email: "alex.j@company.com",
-    type: "employee",
-    department: "Sales",
-  },
-  {
-    id: "4",
-    name: "Sarah Williams",
-    email: "sarah.w@company.com",
-    type: "employee",
-    department: "Marketing",
-  },
-  {
-    id: "5",
-    name: "Mike Chen",
-    email: "mike.c@company.com",
-    type: "employee",
-    department: "Engineering",
-  },
-  {
-    id: "6",
-    name: "Emma Davis",
-    email: "emma.d@company.com",
-    type: "employee",
-    department: "HR",
-  },
-];
 
 interface IndividualRecipientSelectorProps {
   onSelect: (recipient: EmailRecipient | null) => void;
   selectedRecipient: EmailRecipient | null;
+  recipients: EmailRecipient[];
+  isLoading?: boolean;
 }
 
 export const IndividualRecipientSelector: React.FC<
   IndividualRecipientSelectorProps
-> = ({ onSelect, selectedRecipient }) => {
+> = ({ onSelect, selectedRecipient, recipients, isLoading = false }) => {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"internal" | "external">(
     "internal",
   );
-
-  console.log(selectedRecipient?.id);
   const [externalEmail, setExternalEmail] = useState("");
   const [externalName, setExternalName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredEmployees = EMPLOYEES.filter(
+  const filteredRecipients = (recipients as EmailRecipient[]).filter(
     (emp) =>
       emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       emp.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (emp.department?.toLowerCase() || "").includes(searchQuery.toLowerCase()),
   );
-
+  
   const handleSelectEmployee = (employee: EmailRecipient) => {
     onSelect(employee);
     setOpen(false);
@@ -117,6 +79,7 @@ export const IndividualRecipientSelector: React.FC<
     onSelect(null);
   };
 
+  // Selected recipient view
   if (selectedRecipient) {
     return (
       <div className="space-y-3">
@@ -136,16 +99,29 @@ export const IndividualRecipientSelector: React.FC<
                   {selectedRecipient.department}
                 </Badge>
               )}
+              {selectedRecipient.type === "external" && (
+                <Badge variant="secondary" className="mt-1 ml-1">
+                  External
+                </Badge>
+              )}
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleClearSelection}>
+          <Button
+            className="cursor-pointer"
+            variant="ghost"
+            size="icon"
+            onClick={handleClearSelection}
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>
         <Button
           variant="outline"
-          className="w-full"
-          onClick={() => setOpen(true)}
+          className="w-full cursor-pointer"
+          onClick={() => {
+            handleClearSelection(); // ✅ Clear current first
+            setTimeout(() => setOpen(true), 100); // ✅ Then open picker
+          }}
         >
           Change Recipient
         </Button>
@@ -166,86 +142,96 @@ export const IndividualRecipientSelector: React.FC<
           <TabsTrigger value="external">External</TabsTrigger>
         </TabsList>
 
+        {/* Internal Tab */}
         <TabsContent value="internal" className="mt-3 space-y-3">
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={open}
-                className="w-full justify-between"
-              >
-                <span className="flex items-center gap-2">
-                  <Search className="h-4 w-4" />
-                  Search employees...
-                </span>
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[400px] p-0" align="start">
-              <Command>
-                <CommandInput
-                  placeholder="Search by name, email, or department..."
-                  value={searchQuery}
-                  onValueChange={setSearchQuery}
-                />
-                <CommandList>
-                  <CommandEmpty>No employee found.</CommandEmpty>
-                  <CommandGroup heading="Employees">
-                    {filteredEmployees.map((emp: EmailRecipient) => (
-                      <CommandItem
-                        key={emp.id}
-                        onSelect={() => handleSelectEmployee(emp)}
-                        className="cursor-pointer"
-                      >
-                        <div className="flex items-center w-full">
-                          <Check
-                            className={`mr-2 h-4 w-4 ${
-                              (selectedRecipient as EmailRecipient | null)
-                                ?.id === emp.id
-                                ? "opacity-100"
-                                : "opacity-0"
-                            }`}
-                          />
-                          <div className="flex flex-col flex-1">
-                            <span className="font-medium">{emp.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {emp.email} • {emp.department}
-                            </span>
-                          </div>
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-
-          {/* Quick recent/frequent contacts */}
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">
-              Recent Contacts
-            </Label>
-            <div className="space-y-1">
-              {EMPLOYEES.slice(0, 3).map((emp: EmailRecipient) => (
-                <Button
-                  key={emp.id}
-                  variant="ghost"
-                  className="w-full justify-start"
-                  onClick={() => handleSelectEmployee(emp)}
-                >
-                  <User className="mr-2 h-4 w-4" />
-                  <div className="flex-1 text-left">
-                    <p className="text-sm font-medium">{emp.name}</p>
-                    <p className="text-xs text-muted-foreground">{emp.email}</p>
-                  </div>
-                </Button>
-              ))}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          </div>
+          ) : (
+            <>
+              <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-full justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Search className="h-4 w-4" />
+                      Search employees...
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Search by name, email, or department..."
+                      value={searchQuery}
+                      onValueChange={setSearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No employee found.</CommandEmpty>
+                      <CommandGroup heading="Employees">
+                        {filteredRecipients.map((emp: EmailRecipient) => (
+                          <CommandItem
+                            key={emp.id}
+                            onSelect={() => handleSelectEmployee(emp)}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex items-center w-full">
+                              <Check
+                                className={`mr-2 h-4 w-4 ${(selectedRecipient as EmailRecipient | null)?.id === emp.id ? "opacity-100" : "opacity-0"}`}
+                              />
+                              <div className="flex flex-col flex-1">
+                                <span className="font-medium">{emp.name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {emp.email}
+                                  {emp.department ? ` • ${emp.department}` : ""}
+                                </span>
+                              </div>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              {/* Recent Contacts */}
+              {recipients.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Recent Contacts
+                  </Label>
+                  <div className="space-y-1">
+                    {recipients.slice(0, 4).map((emp: EmailRecipient) => (
+                      <Button
+                        key={emp.id}
+                        variant="ghost"
+                        className="w-full justify-start py-6 cursor-pointer"
+                        onClick={() => handleSelectEmployee(emp)}
+                      >
+                        <User className="mr-2 h-4 w-4" />
+                        <div className="flex-1 text-left">
+                          <p className="text-sm font-medium">{emp.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {emp.email}
+                          </p>
+                        </div>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </TabsContent>
 
+        {/* External Tab */}
         <TabsContent value="external" className="mt-3 space-y-3">
           <div className="space-y-2">
             <Label htmlFor="external-name">Name (Optional)</Label>
@@ -257,7 +243,7 @@ export const IndividualRecipientSelector: React.FC<
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="external-email">Email Address</Label>
+            <Label htmlFor="external-email">Email Address*</Label>
             <Input
               id="external-email"
               type="email"

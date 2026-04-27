@@ -38,6 +38,10 @@ export async function authenticate(
     const token = authHeader.replace("Bearer ", "");
     const decoded = verifyAccessToken(token);
 
+        const workspaceId =
+          (req.headers["x-workspace-id"] as string) || decoded.workspaceId;
+
+
     const userWithPerms = await authService.getUserWithPermissions(
       decoded.userId,
     );
@@ -48,7 +52,7 @@ export async function authenticate(
     req.user = {
       id: userWithPerms.id,
       email: userWithPerms.email,
-      workspaceId: userWithPerms.workspaceId,
+      workspaceId: workspaceId,
       roleId: decoded.roleId,
       permissions: userWithPerms.permissions,
       emailVerified: userWithPerms.emailVerified,

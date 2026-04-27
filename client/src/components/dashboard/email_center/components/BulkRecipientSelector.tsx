@@ -6,6 +6,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from "@/components/ui/command";
 import {
   Popover,
@@ -14,37 +15,20 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, ChevronsUpDown, Upload, X } from "lucide-react";
+import { Check, ChevronsUpDown, Upload, X, Loader2 } from "lucide-react";
 import type { EmailRecipient } from "@/types/types";
 
-// Mock employee data
-const EMPLOYEES: EmailRecipient[] = [
-  {
-    id: "1",
-    name: "Rahul Sharma",
-    email: "rahul.s@company.com",
-    type: "employee",
-    department: "Engineering",
-  },
-  {
-    id: "2",
-    name: "Priya Patel",
-    email: "priya.p@company.com",
-    type: "employee",
-    department: "HR",
-  },
-  {
-    id: "3",
-    name: "Alex Johnson",
-    email: "alex.j@company.com",
-    type: "employee",
-    department: "Sales",
-  },
-];
-
-export const BulkRecipientSelector: React.FC<{
+interface BulkRecipientSelectorProps {
   onRecipientsChange: (rec: EmailRecipient[]) => void;
-}> = ({ onRecipientsChange }) => {
+  recipients?: EmailRecipient[]; // ✅ API data
+  isLoading?: boolean;
+}
+
+export const BulkRecipientSelector: React.FC<BulkRecipientSelectorProps> = ({
+  onRecipientsChange,
+  recipients = [],
+  isLoading = false,
+}) => {
   const [selectedRecipients, setSelectedRecipients] = useState<
     EmailRecipient[]
   >([]);
@@ -58,6 +42,30 @@ export const BulkRecipientSelector: React.FC<{
     setSelectedRecipients(newSelection);
     onRecipientsChange(newSelection);
   };
+
+  const removeRecipient = (id: string) => {
+    const updated = selectedRecipients.filter((r) => r.id !== id);
+    setSelectedRecipients(updated);
+    onRecipientsChange(updated);
+  };
+
+  // ==================== LOADING STATE ====================
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-6">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // ==================== EMPTY STATE ====================
+  if (recipients.length === 0) {
+    return (
+      <div className="text-center py-6">
+        <p className="text-sm text-muted-foreground">No employees available</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -78,30 +86,33 @@ export const BulkRecipientSelector: React.FC<{
         <PopoverContent className="w-[400px] p-0">
           <Command>
             <CommandInput placeholder="Search employee..." />
-            <CommandEmpty>No employee found.</CommandEmpty>
-            <CommandGroup heading="Employees">
-              {EMPLOYEES.map((emp) => (
-                <CommandItem
-                  key={emp.id}
-                  value={emp.email}
-                  onSelect={() => handleSelect(emp)}
-                >
-                  <Check
-                    className={`mr-2 h-4 w-4 ${
-                      selectedRecipients.some((r) => r.id === emp.id)
-                        ? "opacity-100"
-                        : "opacity-0"
-                    }`}
-                  />
-                  <div className="flex flex-col">
-                    <span>{emp.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {emp.email} • {emp.department}
-                    </span>
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            <CommandList>
+              <CommandEmpty>No employee found.</CommandEmpty>
+              <CommandGroup heading="Employees">
+                {recipients.map((emp) => (
+                  <CommandItem
+                    key={emp.id}
+                    value={emp.email}
+                    onSelect={() => handleSelect(emp)}
+                  >
+                    <Check
+                      className={`mr-2 h-4 w-4 ${
+                        selectedRecipients.some((r) => r.id === emp.id)
+                          ? "opacity-100"
+                          : "opacity-0"
+                      }`}
+                    />
+                    <div className="flex flex-col">
+                      <span>{emp.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {emp.email}
+                        {emp.department ? ` • ${emp.department}` : ""}
+                      </span>
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
             <div className="border-t p-2">
               <Button
                 variant="ghost"
@@ -117,17 +128,19 @@ export const BulkRecipientSelector: React.FC<{
       </Popover>
 
       {/* Selected Chips */}
-      <div className="flex flex-wrap gap-2">
-        {selectedRecipients.map((r) => (
-          <Badge key={r.id} variant="secondary" className="gap-1 pl-2">
-            {r.name}
-            <X
-              className="h-3 w-3 ml-1 cursor-pointer hover:text-destructive"
-              onClick={() => handleSelect(r)}
-            />
-          </Badge>
-        ))}
-      </div>
+      {selectedRecipients.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selectedRecipients.map((r) => (
+            <Badge key={r.id} variant="secondary" className="gap-1 pl-2">
+              {r.name}
+              <X
+                className="h-3 w-3 ml-1 cursor-pointer hover:text-destructive"
+                onClick={() => removeRecipient(r.id)}
+              />
+            </Badge>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

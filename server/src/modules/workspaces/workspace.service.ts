@@ -1,0 +1,240 @@
+// src/modules/workspaces/workspace.service.ts
+import { db } from "../../db/drizzle";
+import { workspaces, users, roles, activityLogs, attendance, leaves, tasks, teams, workspaceMembers } from "../../db/schema";
+import { eq, and, desc, count } from "drizzle-orm";
+import { v4 as uuidv4 } from "uuid";
+import { ActivityService } from "../activity/activity.service";
+
+const activityService = new ActivityService();
+
+export interface CreateWorkspaceInput {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateWorkspaceInput {
+  name?: string;
+  description?: string;
+}
+
+export class WorkspaceService {
+  /**
+   * Get all workspaces owned by a user
+   */
+  async getUserWorkspaces(userId: string) {
+    const userWorkspaces = await db
+      .select({
+        id: workspaces.id,
+        name: workspaces.name,
+        description: workspaces.description,
+        ownerId: workspaces.ownerId,
+        createdAt: workspaces.createdAt,
+        updatedAt: workspaces.updatedAt,
+      })
+      .from(workspaces)
+      .where(eq(workspaces.ownerId, userId))
+      .orderBy(desc(workspaces.createdAt));
+
+    // Get stats for each workspace
+    const workspacesWithStats = await Promise.all(
+      userWorkspaces.map(async (ws) => {
+        // Get member count
+        const memberCount = await db
+          .select({ count: count() })
+          .from(users)
+          .where(eq(users.workspaceId, ws.id));
+
+        // Get task count (if tasks table exists)
+        // const taskCount = await db.select({ count: db.fn.count() }).from(tasks).where(eq(tasks.workspaceId, ws.id));
+
+        return {
+          ...ws,
+          memberCount: memberCount[0]?.count || 0,
+          taskCount: 0, // Placeholder until tasks are implemented
+          isActive: true,
+        };
+      }),
+    );
+
+    return workspacesWithStats;
+  }
+
+  /**
+   * Get a single workspace by ID
+   */
+  async getWorkspaceById(workspaceId: string) {
+    const [workspace] = await db
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, workspaceId))
+      .limit(1);
+
+    if (!workspace) {
+      throw new Error("Workspace not found");
+    }
+
+    return workspace;
+  }
+
+  /**
+   * Create a new workspace for an existing user (owner)
+   */
+  async createWorkspace(input: CreateWorkspaceInput, ownerId: string) {
+    const { name, description } = input;
+
+    // Check if workspace name already exists for this owner
+    const existingWorkspace = await db
+      .select()
+      .from(workspaces)
+      .where(and(eq(workspaces.name, name), eq(workspaces.ownerId, ownerId)))
+      .limit(1);
+
+    if (existingWorkspace.length > 0) {
+      throw new Error("You already have a workspace with this name");
+    }
+
+    const workspaceId = uuidv4();
+
+    // ✅ Create workspace with ownerId = current user
+    await db.insert(workspaces).values({
+      id: workspaceId,
+      name,
+      description: description || `${name} workspace`,
+      ownerId,
+    });
+
+    const [adminRole] = await db
+      .select()
+      .from(roles)
+      .where(eq(roles.name, "Admin"))
+      .limit(1);
+    
+    if (adminRole) {
+      await db.insert(workspaceMembers).values({
+        userId: ownerId,
+        workspaceId: workspaceId,
+        roleId: adminRole.id,
+      });
+    }
+    // Log activity
+    await activityService.logActivity({
+      userId: ownerId,
+      workspaceId: workspaceId,
+      action: "workspace_created",
+      entityType: "workspace",
+      entityId: workspaceId,
+      details: { workspaceName: name },
+    });
+
+    return this.getWorkspaceById(workspaceId);
+  }
+
+  /**
+   * Update workspace details
+   */
+  async updateWorkspace(
+    workspaceId: string,
+    input: UpdateWorkspaceInput,
+    userId: string,
+  ) {
+    const [workspace] = await db
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, workspaceId))
+      .limit(1);
+
+    if (!workspace) {
+      throw new Error("Workspace not found");
+    }
+
+    // Only owner can update
+    if (workspace.ownerId !== userId) {
+      throw new Error("Only the workspace owner can update it");
+    }
+
+    const updateData: any = {};
+    if (input.name) updateData.name = input.name;
+    if (input.description !== undefined)
+      updateData.description = input.description;
+
+    await db
+      .update(workspaces)
+      .set(updateData)
+      .where(eq(workspaces.id, workspaceId));
+
+    // Log activity
+    await activityService.logActivity({
+      userId: userId,
+      workspaceId: workspaceId,
+      action: "workspace_updated",
+      entityType: "workspace",
+      entityId: workspaceId,
+      details: { changes: input },
+    });
+
+    return this.getWorkspaceById(workspaceId);
+  }
+
+  /**
+   * Delete workspace (only owner can delete)
+   */
+  async deleteWorkspace(workspaceId: string, userId: string) {
+    const [workspace] = await db
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, workspaceId))
+      .limit(1);
+
+    if (!workspace) {
+      throw new Error("Workspace not found");
+    }
+
+    if (workspace.ownerId !== userId) {
+      throw new Error("Only the workspace owner can delete it");
+    }
+
+    // Log activity before deletion
+    await activityService.logActivity({
+      userId: userId,
+      workspaceId: workspaceId,
+      action: "workspace_deleted",
+      entityType: "workspace",
+      entityId: workspaceId,
+      details: { workspaceName: workspace.name },
+    });
+
+    await db
+      .delete(workspaceMembers)
+      .where(eq(workspaceMembers.workspaceId, workspaceId));
+    await db
+      .delete(activityLogs)
+      .where(eq(activityLogs.workspaceId, workspaceId));
+    await db.delete(users).where(eq(users.workspaceId, workspaceId));
+    await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
+
+    // Delete activity logs for this workspace
+    await db
+      .delete(activityLogs)
+      .where(eq(activityLogs.workspaceId, workspaceId));
+
+    // Delete attendance records (if attendance table exists)
+    await db.delete(attendance).where(eq(attendance.workspaceId, workspaceId));
+
+    // Delete leaves (if leaves table exists)
+    await db.delete(leaves).where(eq(leaves.workspaceId, workspaceId));
+
+    // Delete tasks (if tasks table exists)
+    await db.delete(tasks).where(eq(tasks.workspaceId, workspaceId));
+
+    // Delete teams
+    await db.delete(teams).where(eq(teams.workspaceId, workspaceId));
+
+    // Delete users in this workspace
+    await db.delete(users).where(eq(users.workspaceId, workspaceId));
+
+    // Delete workspace (cascade will handle related data)
+    await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
+
+    return { success: true, message: "Workspace deleted successfully" };
+  }
+}

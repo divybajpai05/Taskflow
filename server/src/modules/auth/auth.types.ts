@@ -26,6 +26,7 @@ export interface ResetPasswordInput {
   confirmPassword: string;
 }
 
+
 export interface AuthResponse {
   user: {
     id: string;
@@ -39,11 +40,20 @@ export interface AuthResponse {
     permissions: string[];
     avatarInitials: string;
     emailVerified: boolean;
+    workspaces: {
+      workspaceId: string;
+      workspaceName: string;
+      roleId: string;
+      roleName: string;
+    }[];
+    activeWorkspaceId: string;
+    activeWorkspaceName: string;
   };
   tokens: {
     accessToken: string;
   };
 }
+
 
 export interface UserWithPermissions {
   id: string;

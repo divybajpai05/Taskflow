@@ -1,5 +1,5 @@
 // pages/EmailCenter.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import { TemplateLibrary } from "./components/TemplateLibrary";
 import { EmailStats } from "./components/EmailStats";
 import { IndividualRecipientSelector } from "./components/IndividualRecipientSelector";
 import type { EmailTemplate, EmailRecipient } from "@/types/types";
+import apiClient from "@/api/client";
+import { toast } from "sonner";
 
 export default function EmailCenterPage() {
   const [activeTab, setActiveTab] = useState<"compose" | "templates">(
@@ -19,13 +21,43 @@ export default function EmailCenterPage() {
   const [isBulkMode, setIsBulkMode] = useState(false);
   const [selectedIndividualRecipient, setSelectedIndividualRecipient] =
     useState<EmailRecipient | null>(null);
+  const [recipients, setRecipients] = useState<EmailRecipient[]>([]);
+  const [isLoadingRecipients, setIsLoadingRecipients] = useState(true);
+
+  // ✅ Fetch recipients from API
+  const fetchRecipients = useCallback(async () => {
+    try {
+      setIsLoadingRecipients(true);
+      const response = await apiClient.get("/email/recipients");
+      if (response.data.success) {
+        const mappedRecipients: EmailRecipient[] = response.data.data.map(
+          (u: any) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            type: "employee" as const,
+            department: u.team || undefined,
+          }),
+        );
+        setRecipients(mappedRecipients);
+      }
+    } catch (error) {
+      console.error("Failed to fetch recipients:", error);
+      toast.error("Failed to load recipients");
+    } finally {
+      setIsLoadingRecipients(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRecipients();
+  }, [fetchRecipients]);
 
   const handleTemplateSelect = (template: EmailTemplate) => {
     setSelectedTemplate(template);
     setActiveTab("compose");
   };
 
-  // Fixed: Now accepts null as well
   const handleIndividualRecipientSelect = (
     recipient: EmailRecipient | null,
   ) => {
@@ -43,6 +75,7 @@ export default function EmailCenterPage() {
           </p>
         </div>
         <Button
+          className="cursor-pointer"
           size="lg"
           onClick={() => {
             setActiveTab("compose");
@@ -59,9 +92,9 @@ export default function EmailCenterPage() {
 
       {/* Main Workspace: Two Column Layout */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* LEFT SIDEBAR - Content changes based on mode */}
+        {/* LEFT SIDEBAR */}
         <div className="lg:col-span-1 space-y-6">
-          {/* Quick Templates - Always visible */}
+          {/* Quick Templates */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -70,14 +103,11 @@ export default function EmailCenterPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <TemplateLibrary
-                onSelectTemplate={handleTemplateSelect}
-                // compact={true}
-              />
+              <TemplateLibrary onSelectTemplate={handleTemplateSelect} />
             </CardContent>
           </Card>
 
-          {/* Recipient Section - Changes based on mode */}
+          {/* Recipient Section */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">
@@ -86,13 +116,13 @@ export default function EmailCenterPage() {
             </CardHeader>
             <CardContent>
               {!isBulkMode ? (
-                // Individual Mode: Show individual selector only
                 <IndividualRecipientSelector
                   onSelect={handleIndividualRecipientSelect}
                   selectedRecipient={selectedIndividualRecipient}
+                  recipients={recipients}
+                  isLoading={isLoadingRecipients}
                 />
               ) : (
-                // Bulk Mode: Show groups (this is handled in the composer)
                 <div className="text-sm text-muted-foreground text-center py-4">
                   Use the recipient selector in the composer to choose groups or
                   individuals
@@ -120,6 +150,8 @@ export default function EmailCenterPage() {
                 onClearTemplate={() => setSelectedTemplate(null)}
                 onModeChange={setIsBulkMode}
                 initialRecipient={selectedIndividualRecipient}
+                recipients={recipients} // ✅ Pass API data
+                onClearRecipient={() => setSelectedIndividualRecipient(null)}
               />
             </TabsContent>
 

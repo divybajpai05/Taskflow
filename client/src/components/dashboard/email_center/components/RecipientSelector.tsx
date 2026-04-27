@@ -1,5 +1,5 @@
 // components/email/RecipientSelector.tsx
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Command,
   CommandEmpty,
@@ -27,63 +27,29 @@ import {
   UserPlus,
   Building2,
   Mail,
+  Loader2,
 } from "lucide-react";
 import type { EmailRecipient } from "@/types/types";
 import { Card, CardContent } from "@/components/ui/card";
 
-// Mock data
-const EMPLOYEES: EmailRecipient[] = [
-  {
-    id: "1",
-    name: "Rahul Sharma",
-    email: "rahul.s@company.com",
-    type: "employee",
-    department: "Engineering",
-  },
-  {
-    id: "2",
-    name: "Priya Patel",
-    email: "priya.p@company.com",
-    type: "employee",
-    department: "HR",
-  },
-  {
-    id: "3",
-    name: "Alex Johnson",
-    email: "alex.j@company.com",
-    type: "employee",
-    department: "Sales",
-  },
-  {
-    id: "4",
-    name: "Sarah Williams",
-    email: "sarah.w@company.com",
-    type: "employee",
-    department: "Marketing",
-  },
-  {
-    id: "5",
-    name: "Mike Chen",
-    email: "mike.c@company.com",
-    type: "employee",
-    department: "Engineering",
-  },
-];
-
-const DEPARTMENTS = ["All", "Engineering", "HR", "Sales", "Marketing"];
-
 interface RecipientSelectorProps {
   onRecipientsChange?: (recipients: EmailRecipient[]) => void;
   mode?: "compact" | "full";
+  recipients?: EmailRecipient[]; // ✅ API data
+  isLoading?: boolean;
+  selectedRecipients: EmailRecipient[];
 }
 
 export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
   onRecipientsChange,
   mode = "compact",
+  recipients = [],
+  isLoading = false,
+  selectedRecipients = [],
 }) => {
-  const [selectedRecipients, setSelectedRecipients] = useState<
-    EmailRecipient[]
-  >([]);
+  // const [selectedRecipients, setSelectedRecipients] = useState<
+  //   EmailRecipient[]
+  // >([]);
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<
     "employees" | "external" | "groups"
@@ -92,33 +58,56 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
   const [externalEmails, setExternalEmails] = useState("");
   const [selectAll, setSelectAll] = useState(false);
 
-  const filteredEmployees =
-    selectedDept === "All"
-      ? EMPLOYEES
-      : EMPLOYEES.filter((emp) => emp.department === selectedDept);
+  // ✅ Dynamic departments from API data
+  const departments = useMemo(() => {
+    const depts = new Set(recipients.map((r) => r.department).filter(Boolean));
+    return ["All", ...Array.from(depts)] as string[];
+  }, [recipients]);
 
-  const handleSelect = (recipient: EmailRecipient) => {
-    const newSelection = selectedRecipients.some((r) => r.id === recipient.id)
-      ? selectedRecipients.filter((r) => r.id !== recipient.id)
-      : [...selectedRecipients, recipient];
+  // ✅ Filter by department
+  const filteredEmployees = useMemo(() => {
+    if (selectedDept === "All") return recipients;
+    return recipients.filter((emp) => emp.department === selectedDept);
+  }, [recipients, selectedDept]);
 
-    setSelectedRecipients(newSelection);
-    onRecipientsChange?.(newSelection);
-  };
+  // ✅ Dynamic groups from departments
+  const groups = useMemo(() => {
+    const deptGroups = departments
+      .filter((d) => d !== "All")
+      .map((dept) => ({
+        id: dept.toLowerCase().replace(/\s+/g, "-"),
+        name: `${dept} Team`,
+        count: recipients.filter((r) => r.department === dept).length,
+      }));
+
+    return [
+      { id: "all-employees", name: "All Employees", count: recipients.length },
+      ...deptGroups,
+    ];
+  }, [recipients, departments]);
+
+   const handleSelect = (recipient: EmailRecipient) => {
+     const newSelection = selectedRecipients.some((r) => r.id === recipient.id)
+       ? selectedRecipients.filter((r) => r.id !== recipient.id)
+       : [...selectedRecipients, recipient];
+
+     onRecipientsChange?.(newSelection);
+   };
 
   const handleSelectAll = () => {
     if (selectAll) {
-      setSelectedRecipients([]);
       onRecipientsChange?.([]);
     } else {
-      setSelectedRecipients(filteredEmployees);
       onRecipientsChange?.(filteredEmployees);
     }
     setSelectAll(!selectAll);
   };
 
   const handleAddExternalEmails = () => {
-    const emails = externalEmails.split(",").map((email) => email.trim());
+    const emails = externalEmails
+      .split(",")
+      .map((email) => email.trim())
+      .filter(Boolean);
     const newRecipients = emails.map((email, index) => ({
       id: `ext-${Date.now()}-${index}`,
       name: email.split("@")[0],
@@ -127,45 +116,44 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
     }));
 
     const updated = [...selectedRecipients, ...newRecipients];
-    setSelectedRecipients(updated);
     onRecipientsChange?.(updated);
     setExternalEmails("");
   };
 
-  const removeRecipient = (id: string) => {
-    const updated = selectedRecipients.filter((r) => r.id !== id);
-    setSelectedRecipients(updated);
-    onRecipientsChange?.(updated);
-  };
-
-  // Predefined groups
-  const groups = [
-    { id: "all-employees", name: "All Employees", count: EMPLOYEES.length },
-    { id: "engineering", name: "Engineering Team", count: 2 },
-    { id: "hr", name: "HR Team", count: 1 },
-    { id: "management", name: "Management", count: 3 },
-  ];
+   const removeRecipient = (id: string) => {
+     const updated = selectedRecipients.filter((r) => r.id !== id);
+     onRecipientsChange?.(updated);
+   };
 
   const handleGroupSelect = (group: (typeof groups)[0]) => {
     let groupRecipients: EmailRecipient[] = [];
 
     if (group.id === "all-employees") {
-      groupRecipients = EMPLOYEES;
-    } else if (group.id === "engineering") {
-      groupRecipients = EMPLOYEES.filter((e) => e.department === "Engineering");
-    } else if (group.id === "hr") {
-      groupRecipients = EMPLOYEES.filter((e) => e.department === "HR");
+      groupRecipients = recipients;
+    } else {
+      const deptName = group.name.replace(" Team", "");
+      groupRecipients = recipients.filter((e) => e.department === deptName);
     }
 
-    setSelectedRecipients(groupRecipients);
     onRecipientsChange?.(groupRecipients);
   };
 
+  // ==================== LOADING STATE ====================
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // ==================== COMPACT MODE ====================
   if (mode === "compact") {
     return (
       <div className="space-y-3">
+        {/* Quick Groups */}
         <div className="space-y-2">
-          {groups.map((group) => (
+          {groups.slice(0, 3).map((group) => (
             <Button
               key={group.id}
               variant="outline"
@@ -193,6 +181,7 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
           </div>
         </div>
 
+        {/* Individual Selector */}
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
@@ -212,23 +201,20 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
               <CommandList>
                 <CommandEmpty>No employee found.</CommandEmpty>
                 <CommandGroup heading="Employees">
-                  {EMPLOYEES.map((emp) => (
+                  {recipients.map((emp) => (
                     <CommandItem
                       key={emp.id}
                       value={emp.email}
                       onSelect={() => handleSelect(emp)}
                     >
                       <Check
-                        className={`mr-2 h-4 w-4 ${
-                          selectedRecipients.some((r) => r.id === emp.id)
-                            ? "opacity-100"
-                            : "opacity-0"
-                        }`}
+                        className={`mr-2 h-4 w-4 ${selectedRecipients.some((r) => r.id === emp.id) ? "opacity-100" : "opacity-0"}`}
                       />
                       <div className="flex flex-col">
                         <span>{emp.name}</span>
                         <span className="text-xs text-muted-foreground">
-                          {emp.email} • {emp.department}
+                          {emp.email}
+                          {emp.department ? ` • ${emp.department}` : ""}
                         </span>
                       </div>
                     </CommandItem>
@@ -250,13 +236,12 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
                 <Badge
                   key={r.id}
                   variant="secondary"
-                  className="gap-1 pl-2 text-xs"
+                  className="gap-1 pl-2 text-xs cursor-pointer  hover:bg-red-200"
+                  onClick={() => removeRecipient(r.id)}
                 >
                   {r.name}
-                  <X
-                    className="h-3 w-3 ml-1 cursor-pointer hover:text-destructive"
-                    onClick={() => removeRecipient(r.id)}
-                  />
+
+                  <X className="h-3 w-3 ml-1 " />
                 </Badge>
               ))}
             </div>
@@ -266,7 +251,7 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
     );
   }
 
-  // Full mode with tabs
+  // ==================== FULL MODE ====================
   return (
     <Tabs
       value={activeTab}
@@ -288,10 +273,10 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
         </TabsTrigger>
       </TabsList>
 
+      {/* Employees Tab */}
       <TabsContent value="employees" className="space-y-4 mt-4">
-        {/* Department Filter */}
         <div className="flex gap-2 flex-wrap">
-          {DEPARTMENTS.map((dept) => (
+          {departments.map((dept) => (
             <Badge
               key={dept}
               variant={selectedDept === dept ? "default" : "outline"}
@@ -303,7 +288,6 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
           ))}
         </div>
 
-        {/* Select All */}
         <div className="flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={handleSelectAll}>
             {selectAll ? "Deselect All" : "Select All"}
@@ -314,7 +298,6 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
           </Button>
         </div>
 
-        {/* Employee List */}
         <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
           {filteredEmployees.map((emp) => (
             <div
@@ -324,23 +307,22 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
             >
               <div className="flex items-center gap-3">
                 <Check
-                  className={`h-4 w-4 ${
-                    selectedRecipients.some((r) => r.id === emp.id)
-                      ? "opacity-100 text-primary"
-                      : "opacity-0"
-                  }`}
+                  className={`h-4 w-4 ${selectedRecipients.some((r) => r.id === emp.id) ? "opacity-100 text-primary" : "opacity-0"}`}
                 />
                 <div>
                   <p className="font-medium">{emp.name}</p>
                   <p className="text-sm text-muted-foreground">{emp.email}</p>
                 </div>
               </div>
-              <Badge variant="outline">{emp.department}</Badge>
+              {emp.department && (
+                <Badge variant="outline">{emp.department}</Badge>
+              )}
             </div>
           ))}
         </div>
       </TabsContent>
 
+      {/* External Tab */}
       <TabsContent value="external" className="space-y-4 mt-4">
         <div className="space-y-2">
           <Label>External Email Addresses</Label>
@@ -358,6 +340,7 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
         </Button>
       </TabsContent>
 
+      {/* Groups Tab */}
       <TabsContent value="groups" className="space-y-4 mt-4">
         {groups.map((group) => (
           <Card
@@ -381,7 +364,7 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
         ))}
       </TabsContent>
 
-      {/* Selected Count Display */}
+      {/* Selected Count */}
       {selectedRecipients.length > 0 && (
         <div className="mt-4 p-3 bg-muted rounded-lg">
           <p className="text-sm font-medium mb-2">
@@ -406,18 +389,17 @@ export const RecipientSelector: React.FC<RecipientSelectorProps> = ({
   );
 };
 
-// Also export the individual recipient input component
+// Individual Recipient Input
 export const IndividualRecipientInput: React.FC<{
   onRecipientsChange: (rec: EmailRecipient[]) => void;
-}> = ({ onRecipientsChange }) => {
+  recipients?: EmailRecipient[];
+}> = ({ onRecipientsChange, recipients = [] }) => {
   const [email, setEmail] = useState("");
   const [recipient, setRecipient] = useState<EmailRecipient | null>(null);
 
   const handleEmailChange = (value: string) => {
     setEmail(value);
-
-    // Check if it's an internal employee
-    const employee = EMPLOYEES.find((emp) => emp.email === value);
+    const employee = recipients.find((emp) => emp.email === value);
 
     if (employee) {
       setRecipient(employee);
