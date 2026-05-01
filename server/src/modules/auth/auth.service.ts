@@ -9,8 +9,9 @@ import {
   userPermissions,
   activityLogs,
   workspaceMembers,
+  teams,
 } from "../../db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import argon2 from "argon2";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -133,7 +134,7 @@ export class AuthService {
       await tx.insert(activityLogs).values({
         userId: userId,
         workspaceId: workspaceId,
-        action: "user_registered",
+        action: `registered and created workspace "${workspaceName}"`,
         entityType: "user",
         entityId: userId,
         details: { workspaceName, email },
@@ -153,7 +154,11 @@ export class AuthService {
       }
 
       // 6. Get user with permissions
-      const userWithPerms = await this.getUserWithPermissions(userId, tx);
+      const userWithPerms = await this.getUserWithPermissions(
+        userId,
+        undefined,
+        tx,
+      );
 
       // 7. Generate tokens
       const tokens = generateTokens({
@@ -272,7 +277,7 @@ export class AuthService {
       await db.insert(activityLogs).values({
         userId: user.id,
         workspaceId: user.workspaceId,
-        action: "email_verified",
+        action: `${user.name} verified their email`,
         entityType: "user",
         entityId: user.id,
       });
@@ -355,11 +360,15 @@ export class AuthService {
         roleId: users.roleId,
         roleName: roles.name,
         team: users.team,
+        teamId: users.teamId,
         workspaceId: users.workspaceId,
         workspaceName: workspaces.name,
         avatar: users.avatar,
         isActive: users.isActive,
         emailVerified: users.emailVerified,
+        phone: users.phone,
+        lastLoginAt: users.lastLoginAt,
+        lastLoginIp: users.lastLoginIp,
       })
       .from(users)
       .innerJoin(roles, eq(users.roleId, roles.id))
@@ -369,33 +378,71 @@ export class AuthService {
 
     const user = userResult[0];
 
-    if (!user) {
-      throw new Error("Invalid email or password");
-    }
-
-    if (!user.isActive) {
-      throw new Error("Account is deactivated. Please contact administrator.");
-    } 
-
-    // Check if email is verified
-    if (!user.emailVerified) {
-      throw new Error(
-        "Please verify your email before logging in. Check your inbox for the verification link.",
-      );
-    }
+    if (!user) throw new Error("Invalid email or password");
+    if (!user.isActive) throw new Error("Account is deactivated.");
+    if (!user.emailVerified)
+      throw new Error("Please verify your email before logging in.");
 
     const isValidPassword = await argon2.verify(user.password, password);
-    if (!isValidPassword) {
-      throw new Error("Invalid email or password");
+    if (!isValidPassword) throw new Error("Invalid email or password");
+
+    // ✅ FIRST: Get user's workspaces
+    const userWorkspaces = await db
+      .select({
+        workspaceId: workspaceMembers.workspaceId,
+        workspaceName: workspaces.name,
+        roleId: workspaceMembers.roleId,
+        roleName: roles.name,
+      })
+      .from(workspaceMembers)
+      .innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
+      .innerJoin(roles, eq(workspaceMembers.roleId, roles.id))
+      .where(eq(workspaceMembers.userId, user.id));
+
+    const activeWorkspace = userWorkspaces[0];
+
+    // ✅ Get workspace-specific team from workspace_members
+    let workspaceTeam: string | null = null;
+    let workspaceTeamId: string | null = null;
+
+    if (activeWorkspace?.workspaceId) {
+      const [memberData] = await db
+        .select({ teamId: workspaceMembers.teamId })
+        .from(workspaceMembers)
+        .where(
+          and(
+            eq(workspaceMembers.userId, user.id),
+            eq(workspaceMembers.workspaceId, activeWorkspace.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (memberData?.teamId) {
+        workspaceTeamId = memberData.teamId;
+
+        const [teamData] = await db
+          .select({ name: teams.name })
+          .from(teams)
+          .where(eq(teams.id, memberData.teamId))
+          .limit(1);
+
+        workspaceTeam = teamData?.name || null;
+      }
     }
 
-    const userWithPerms = await this.getUserWithPermissions(user.id);
+    console.log("🔵 Login - Workspace team:", workspaceTeam, workspaceTeamId);
+
+    // ✅ THEN: Get permissions using workspace-specific role
+    const userWithPerms = await this.getUserWithPermissions(
+      user.id,
+      activeWorkspace?.workspaceId,
+    );
 
     const tokens = generateTokens({
       userId: user.id,
       email: user.email,
-      workspaceId: user.workspaceId,
-      roleId: user.roleId,
+      workspaceId: activeWorkspace?.workspaceId || user.workspaceId,
+      roleId: activeWorkspace?.roleId || user.roleId,
     });
 
     const hashedRefreshToken = await argon2.hash(tokens.refreshToken);
@@ -416,28 +463,14 @@ export class AuthService {
       .slice(0, 2);
 
     // Log activity
-    await db.insert(activityLogs).values({
-      userId: user.id,
-      workspaceId: user.workspaceId,
-      action: "user_login",
-      entityType: "user",
-      entityId: user.id,
-      ipAddress: ipAddress || null,
-    });
-
-    const userWorkspaces = await db
-      .select({
-        workspaceId: workspaceMembers.workspaceId,
-        workspaceName: workspaces.name,
-        roleId: workspaceMembers.roleId,
-        roleName: roles.name,
-      })
-      .from(workspaceMembers)
-      .innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
-      .innerJoin(roles, eq(workspaceMembers.roleId, roles.id))
-      .where(eq(workspaceMembers.userId, user.id));
-
-    const activeWorkspace = userWorkspaces[0];
+   await db.insert(activityLogs).values({
+     userId: user.id,
+     workspaceId: activeWorkspace?.workspaceId || user.workspaceId,
+     action: `${user.name} logged in`,
+     entityType: "user",
+     entityId: user.id,
+     ipAddress: ipAddress || null,
+   });
 
     return {
       user: {
@@ -445,23 +478,25 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: activeWorkspace?.roleName || "",
-        team: user.team,
+        team: workspaceTeam || user.team, // ✅ Workspace-specific first, fallback to global
+        teamId: workspaceTeamId || user.teamId, // ✅ Workspace-specific first, fallback to global
+        phone: user.phone,
         workspaceId: activeWorkspace?.workspaceId || "",
         workspaceName: activeWorkspace?.workspaceName || "",
-        workspaces: userWorkspaces, // ✅ ADD: all workspaces
-        activeWorkspaceId: activeWorkspace?.workspaceId || "", // ✅ ADD
-        activeWorkspaceName: activeWorkspace?.workspaceName || "", // ✅ ADD
+        workspaces: userWorkspaces,
+        activeWorkspaceId: activeWorkspace?.workspaceId || "",
+        activeWorkspaceName: activeWorkspace?.workspaceName || "",
         avatar: user.avatar,
         permissions: userWithPerms.permissions,
         avatarInitials,
         emailVerified: user.emailVerified,
+        lastLoginAt: user.lastLoginAt?.toISOString(),
+        lastLoginIp: user.lastLoginIp,
       },
       tokens: { accessToken: tokens.accessToken },
       refreshToken: tokens.refreshToken,
     };
-
   }
-
   /**
    * Forgot password - send reset email
    */
@@ -613,12 +648,44 @@ export class AuthService {
   /**
    * Get user with all permissions
    */
+  // src/modules/auth/auth.service.ts
+
   async getUserWithPermissions(
     userId: string,
+    workspaceId?: string,
     tx?: any,
   ): Promise<UserWithPermissions> {
     const dbInstance = tx || db;
 
+    let roleId: string | undefined;
+    let roleName: string | undefined;
+    let userWorkspaceId: string | undefined;
+
+    // ✅ If workspaceId is provided, get role from workspace_members
+    if (workspaceId) {
+      const [member] = await dbInstance
+        .select({
+          roleId: workspaceMembers.roleId,
+          roleName: roles.name,
+        })
+        .from(workspaceMembers)
+        .innerJoin(roles, eq(workspaceMembers.roleId, roles.id))
+        .where(
+          and(
+            eq(workspaceMembers.userId, userId),
+            eq(workspaceMembers.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (member) {
+        roleId = member.roleId;
+        roleName = member.roleName;
+        userWorkspaceId = workspaceId;
+      }
+    }
+
+    // ✅ Get user basic info
     const userResult = await dbInstance
       .select({
         id: users.id,
@@ -640,18 +707,36 @@ export class AuthService {
       throw new Error("User not found");
     }
 
+    // ✅ Use workspace-specific role if available, otherwise use default
+    const effectiveRoleId = roleId || user.roleId;
+    const effectiveRoleName = roleName || user.roleName;
+    const effectiveWorkspaceId = userWorkspaceId || user.workspaceId;
+
+    console.log("🔵 getUserWithPermissions:", {
+      userId,
+      workspaceId,
+      effectiveRoleId,
+      effectiveRoleName,
+      hasWorkspaceContext: !!workspaceId,
+    });
+
     // Get role default permissions
     const rolePerms = await dbInstance
       .select({ name: permissions.name })
       .from(rolePermissions)
       .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
-      .where(eq(rolePermissions.roleId, user.roleId));
+      .where(eq(rolePermissions.roleId, effectiveRoleId));
 
     // Create Set with explicit string type
     const permissionSet = new Set<string>();
     rolePerms.forEach((p: { name: string }) => {
       permissionSet.add(p.name);
     });
+
+    console.log(
+      `🔵 Role "${effectiveRoleName}" default permissions:`,
+      permissionSet.size,
+    );
 
     // Get user-specific permission overrides
     const overrides = await dbInstance
@@ -663,24 +748,31 @@ export class AuthService {
       .innerJoin(permissions, eq(userPermissions.permissionId, permissions.id))
       .where(eq(userPermissions.userId, userId));
 
-    overrides.forEach((override: { name: string; granted: boolean }) => {
-      if (override.granted) {
+    overrides.forEach((override: { name: string; granted: boolean | null }) => {
+      if (override.granted === true) {
         permissionSet.add(override.name);
-      } else {
+        console.log(`  + Added override: ${override.name}`);
+      } else if (override.granted === false) {
         permissionSet.delete(override.name);
+        console.log(`  - Removed override: ${override.name}`);
       }
     });
 
     // Cast to string[]
     const permissionsArray: string[] = Array.from(permissionSet);
 
+    console.log(
+      `🔵 Final permissions for ${effectiveRoleName}:`,
+      permissionsArray,
+    );
+
     return {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.roleName,
+      role: effectiveRoleName, // ✅ Workspace-specific role name
       team: user.team,
-      workspaceId: user.workspaceId,
+      workspaceId: effectiveWorkspaceId, // ✅ Workspace-specific
       permissions: permissionsArray,
       emailVerified: user.emailVerified,
     };

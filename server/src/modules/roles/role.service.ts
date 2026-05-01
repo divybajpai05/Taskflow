@@ -152,7 +152,7 @@ export class RoleService {
     await activityService.logActivity({
       userId: userId,
       workspaceId: workspaceId,
-      action: "role_created",
+      action: `created role "${name}"`,
       entityType: "role",
       entityId: roleId,
       details: { roleName: name, permissionsCount: permissionIds.length },
@@ -226,14 +226,14 @@ export class RoleService {
       }
     }
 
-    await activityService.logActivity({
-      userId: userId,
-      workspaceId: workspaceId,
-      action: "role_updated",
-      entityType: "role",
-      entityId: roleId,
-      details: { roleName: name || existingRole.name },
-    });
+   await activityService.logActivity({
+     userId: userId,
+     workspaceId: workspaceId,
+     action: `updated role "${name || existingRole.name}"`,
+     entityType: "role",
+     entityId: roleId,
+     details: { roleName: name || existingRole.name },
+   });
 
     return this.getRoleById(roleId);
   }
@@ -277,14 +277,14 @@ export class RoleService {
     await db.delete(roles).where(eq(roles.id, roleId));
 
     // Log activity
-    await activityService.logActivity({
-      userId,
-      workspaceId,
-      action: "role_deleted",
-      entityType: "role",
-      entityId: roleId,
-      details: { roleName: role.name },
-    });
+   await activityService.logActivity({
+     userId,
+     workspaceId,
+     action: `deleted role "${role.name}"`,
+     entityType: "role",
+     entityId: roleId,
+     details: { roleName: role.name },
+   });
 
     return { success: true, message: "Role deleted successfully" };
   }

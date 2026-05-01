@@ -18,17 +18,60 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
-const chartData = [
-  { name: "In Progress", value: 50, fill: "#3b82f6" },
-  { name: "Done", value: 30, fill: "#22c55e" },
-  { name: "Todo", value: 10, fill: "#eab308" },
-  { name: "On Hold", value: 15, fill: "#64748b" },
-  { name: "Cancelled", value: 8, fill: "#ef4444" },
+const STATUS_COLORS: Record<string, string> = {
+  "IN PROGRESS": "#3b82f6",
+  "In Progress": "#3b82f6",
+  DONE: "#22c55e",
+  Done: "#22c55e",
+  TODO: "#eab308",
+  Todo: "#eab308",
+  "ON HOLD": "#64748b",
+  "On Hold": "#64748b",
+  REVIEW: "#64748b",
+  CANCELLED: "#ef4444",
+  Cancelled: "#ef4444",
+};
+
+const DEFAULT_COLORS = [
+  "#3b82f6",
+  "#22c55e",
+  "#eab308",
+  "#64748b",
+  "#ef4444",
+  "#8b5cf6",
 ];
 
-const totalTasks = chartData.reduce((sum, item) => sum + item.value, 0);
+interface TaskStatusChartProps {
+  data?: { status: string; count: number }[];
+}
 
-export function TaskStatusChart() {
+export function TaskStatusChart({ data = [] }: TaskStatusChartProps) {
+  // Transform API data to chart format
+  const chartData = data.map((item, index) => ({
+    name:
+      item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase(),
+    value: item.count,
+    fill:
+      STATUS_COLORS[item.status] ||
+      DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+  }));
+
+  const totalTasks = chartData.reduce((sum, item) => sum + item.value, 0);
+
+  if (chartData.length === 0) {
+    return (
+      <Card className="w-full flex flex-col">
+        <CardHeader className="items-center pb-2">
+          <CardTitle>Task Status</CardTitle>
+          <CardDescription>Current distribution of all tasks</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-[320px]">
+          <p className="text-sm text-neutral-500">No task data available</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="w-full flex flex-col">
       <CardHeader className="items-center pb-2">
@@ -61,7 +104,6 @@ export function TaskStatusChart() {
                 <Cell key={`cell-${index}`} fill={entry.fill} />
               ))}
 
-              {/* Center Total Label */}
               <Label
                 content={({ viewBox }) => {
                   if (viewBox && "cx" in viewBox && "cy" in viewBox) {

@@ -82,7 +82,12 @@ export class UserController {
       const updatedById = req.user!.id;
       const workspaceId = req.user!.workspaceId;
 
-      const user = await userService.updateUser(id, input, updatedById, workspaceId);
+      const user = await userService.updateUser(
+        id,
+        input,
+        updatedById,
+        workspaceId,
+      );
 
       res.json({
         success: true,
@@ -221,6 +226,22 @@ export class UserController {
         success: true,
         data: perms,
       });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
+  async changePassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const { currentPassword, newPassword } = req.body;
+
+      const result = await userService.changePassword(
+        userId,
+        currentPassword,
+        newPassword,
+      );
+      res.json({ success: true, message: "Password changed successfully" });
     } catch (error: any) {
       next(error);
     }

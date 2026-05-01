@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+// components/dashboard/kanban/KanbanBoard.tsx
+import { useState, useEffect, useCallback } from "react";
 import {
   DndContext,
   closestCorners,
@@ -6,9 +7,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import type { DragOverEvent } from "@dnd-kit/core";
-import type { Task } from "@/types/types";
-import { initialTasks } from "../mytask/Mytasks";
+import type { DragEndEvent } from "@dnd-kit/core";
 import { AddTaskModal } from "../mytask/AddTaskModal";
 import { KanbanColumn } from "./KanbanColumn";
 import { StatusColors } from "../overview/components/ActiveTaskQueue";
@@ -22,7 +21,15 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, FilterX } from "lucide-react";
+import { toast } from "sonner";
+import apiClient from "@/api/client";
+import {
+  kanbanService,
+  type KanbanBoard,
+  type KanbanTask,
+} from "@/services/kanban.service";
+import KanbanBoardLoader from "@/components/loaders/KanbanBoardLoader";
 
 const statuses = [
   "Todo",
@@ -33,90 +40,225 @@ const statuses = [
 ] as const;
 
 export default function KanbanBoard() {
-  const [taskList, setTaskList] = useState<Task[]>(initialTasks);
+  const [board, setBoard] = useState<KanbanBoard>({});
+  const [allTeams, setAllTeams] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPriority, setSelectedPriority] = useState("All");
+  const [selectedTeam, setSelectedTeam] = useState("All Teams");
+  const [teamsList, setTeamsList] = useState<{ id: string; name: string }[]>(
+    [],
+  );
+
+  // ✅ Add workspace members state
+  const [workspaceMembers, setWorkspaceMembers] = useState<
+    {
+      id: string;
+      name: string;
+      email: string;
+      team?: string;
+      teamId?: string;
+    }[]
+  >([]);
 
   const [selectedTaskForDetail, setSelectedTaskForDetail] =
-    useState<Task | null>(null);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false); // ← New state
+    useState<KanbanTask | null>(null);
+  const [editingTask, setEditingTask] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const groupedTasks = useMemo(() => {
-    const filtered = taskList.filter((task) => {
-      const matchesSearch = task.title
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
-      const matchesPriority =
-        selectedPriority === "All" || task.priority === selectedPriority;
-      return matchesSearch && matchesPriority;
-    });
+  // ✅ Fetch workspace members
+  const fetchWorkspaceMembers = useCallback(async () => {
+    try {
+      const response = await apiClient.get("/users/workspace-members");
+      if (response.data.success) {
+        setWorkspaceMembers(
+          response.data.data.map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            team: u.team,
+            teamId: u.teamId,
+          })),
+        );
+      }
+    } catch (error) {
+      console.error("Failed to fetch workspace members:", error);
+    }
+  }, []);
 
-    const byTeam: Record<string, Record<string, Task[]>> = {};
+  // ✅ Fetch board data
+  const fetchBoard = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const data = await kanbanService.getBoard(searchTerm, selectedPriority);
+      setBoard(data);
+    } catch (error) {
+      console.error("Failed to fetch kanban board:", error);
+      toast.error("Failed to load kanban board");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchTerm, selectedPriority]);
 
-    filtered.forEach((task) => {
-      if (!byTeam[task.selectTeam]) byTeam[task.selectTeam] = {};
-      const statusKey = task.status;
-      if (!byTeam[task.selectTeam][statusKey])
-        byTeam[task.selectTeam][statusKey] = [];
-      byTeam[task.selectTeam][statusKey].push(task);
-    });
+  useEffect(() => {
+    fetchBoard();
+    fetchWorkspaceMembers(); // ✅ Fetch members on mount
+  }, [fetchBoard, fetchWorkspaceMembers]);
 
-    return byTeam;
-  }, [taskList, searchTerm, selectedPriority]);
+  // ✅ Extract team names from board
+  useEffect(() => {
+    const teams = Object.keys(board);
+    setAllTeams(teams);
+  }, [board]);
 
-  const teams = Object.keys(groupedTasks);
+  // ✅ Fetch teams list for AddTaskModal dropdown
+  useEffect(() => {
+    const fetchTeams = async () => {
+      try {
+        const response = await apiClient.get("/teams");
+        if (response.data.success) {
+          setTeamsList(response.data.data || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch teams:", error);
+        const teamsFromBoard = Object.keys(board).map((name) => ({
+          id: name,
+          name: name,
+        }));
+        setTeamsList(teamsFromBoard);
+      }
+    };
+    fetchTeams();
+  }, [board]);
+
+  // ✅ Filter teams based on selection
+  const teams =
+    selectedTeam === "All Teams"
+      ? Object.keys(board)
+      : [selectedTeam].filter((t) => board[t]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
-  const handleDragOver = (event: DragOverEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const activeId = String(active.id);
+    const taskId = String(active.id);
     const overId = String(over.id);
-    const newStatus = overId.split("-").pop() || "";
+    const parts = overId.split("-");
+    const newStatus = parts[parts.length - 1];
 
-    setTaskList((prevTasks) => {
-      const activeTaskIndex = prevTasks.findIndex((t) => t.id === activeId);
-      if (activeTaskIndex === -1) return prevTasks;
+    if (!newStatus || !statuses.includes(newStatus as any)) return;
 
-      const activeTask = prevTasks[activeTaskIndex];
-      if (activeTask.status === newStatus) return prevTasks;
-
-      const updatedTasks = [...prevTasks];
-      updatedTasks[activeTaskIndex] = {
-        ...activeTask,
-        status: newStatus as any,
-      };
-      return updatedTasks;
+    setBoard((prevBoard) => {
+      const newBoard = JSON.parse(JSON.stringify(prevBoard));
+      for (const team of Object.keys(newBoard)) {
+        for (const status of Object.keys(newBoard[team] || {})) {
+          const taskIndex = newBoard[team][status]?.findIndex(
+            (t: any) => t.id === taskId,
+          );
+          if (taskIndex !== undefined && taskIndex !== -1) {
+            const [movedTask] = newBoard[team][status].splice(taskIndex, 1);
+            const targetTeam = overId.split("-").slice(0, -1).join("-") || team;
+            if (!newBoard[targetTeam]) newBoard[targetTeam] = {};
+            if (!newBoard[targetTeam][newStatus])
+              newBoard[targetTeam][newStatus] = [];
+            newBoard[targetTeam][newStatus].push({
+              ...movedTask,
+              status: newStatus,
+            });
+            return newBoard;
+          }
+        }
+      }
+      return newBoard;
     });
+
+    try {
+      await kanbanService.moveTask(taskId, newStatus);
+      toast.success(`Task moved to ${newStatus}`);
+    } catch (error) {
+      console.error("Failed to move task:", error);
+      toast.error("Failed to move task");
+      fetchBoard();
+    }
   };
 
-  const handleAddTask = (newTask: Task) => {
-    setTaskList([newTask, ...taskList]);
+  // ✅ New Task
+  const handleAddTask = async (newTask: any): Promise<any> => {
+    try {
+      const response = await apiClient.post("/tasks", {
+        title: newTask.title,
+        description: newTask.description || "",
+        priority: newTask.priority || "Medium",
+        status: newTask.status || "In progress",
+        teamId: newTask.teamId || newTask.selectTeam || null,
+        assigneeIds: newTask.assigneeIds || newTask.selectMember || [],
+        dueDate: newTask.dueDate || null,
+      });
+
+      if (response.data.success) {
+        toast.success("Task created successfully");
+        setIsModalOpen(false);
+        await fetchBoard();
+        return { success: true };
+      }
+    } catch (error: any) {
+      console.error("Failed to create task:", error);
+      toast.error(error.response?.data?.error || "Failed to create task");
+      throw error;
+    }
   };
 
-  const handleSaveEdit = (updatedTask: Task) => {
-    setTaskList((prev) =>
-      prev.map((task) => (task.id === updatedTask.id ? updatedTask : task)),
-    );
-    setEditingTask(null);
-    setIsModalOpen(false); // ← Close modal after edit
+  // ✅ Edit Task
+  const handleSaveEdit = async (updatedTask: any): Promise<any> => {
+    try {
+      const response = await apiClient.put(`/tasks/${updatedTask.id}`, {
+        title: updatedTask.title,
+        description: updatedTask.description,
+        priority: updatedTask.priority,
+        status: updatedTask.status,
+        teamId: updatedTask.teamId || updatedTask.selectTeam,
+        assigneeIds: updatedTask.assigneeIds || updatedTask.selectMember || [],
+        dueDate: updatedTask.dueDate,
+      });
+
+      if (response.data.success) {
+        toast.success("Task updated successfully");
+        setEditingTask(null);
+        setIsModalOpen(false);
+        await fetchBoard();
+        return { success: true };
+      }
+    } catch (error: any) {
+      console.error("Failed to update task:", error);
+      toast.error(error.response?.data?.error || "Failed to update task");
+      throw error;
+    }
   };
+
+  // ✅ Map assignee NAMES to IDs before passing to modal
+ const handleEditFromDetail = (task: KanbanTask) => {
+   setSelectedTaskForDetail(null);
+   setEditingTask({
+     ...task,
+     selectTeam: task.teamId || task.teamName || "",
+     // ✅ Pass names - AddTaskModal will map to IDs internally
+     selectMember: task.assignees || [],
+   });
+   setIsModalOpen(true);
+ };
 
   const handleCloseEdit = () => {
     setEditingTask(null);
     setIsModalOpen(false);
   };
 
-  const handleEditFromDetail = (task: Task) => {
-    setSelectedTaskForDetail(null);
-    setEditingTask(task);
-    setIsModalOpen(true); // ← Open modal for editing
-  };
+  if (isLoading) {
+    return <KanbanBoardLoader />;
+  }
 
   return (
     <div className="min-h-screen">
@@ -126,7 +268,7 @@ export default function KanbanBoard() {
           <p className="text-slate-500 mt-1">Visual workflow by teams</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Input
             type="text"
             placeholder="Search tasks..."
@@ -134,6 +276,20 @@ export default function KanbanBoard() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-72 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500"
           />
+
+          <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+            <SelectTrigger className="w-45">
+              <SelectValue placeholder="All Teams" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All Teams">All Teams</SelectItem>
+              {allTeams.map((team) => (
+                <SelectItem key={team} value={team}>
+                  {team}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <Select value={selectedPriority} onValueChange={setSelectedPriority}>
             <SelectTrigger className="w-45">
@@ -148,7 +304,23 @@ export default function KanbanBoard() {
             </SelectContent>
           </Select>
 
-          {/* New Task Button */}
+          {(selectedTeam !== "All Teams" ||
+            selectedPriority !== "All" ||
+            searchTerm) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setSelectedTeam("All Teams");
+                setSelectedPriority("All");
+                setSearchTerm("");
+              }}
+              title="Clear filters"
+            >
+              <FilterX className="h-4 w-4" />
+            </Button>
+          )}
+
           <Button
             onClick={() => {
               setEditingTask(null);
@@ -159,7 +331,6 @@ export default function KanbanBoard() {
             <Plus className="w-4 h-4 mr-1" /> New Task
           </Button>
 
-          {/* Controlled AddTaskModal */}
           <AddTaskModal
             onAddTask={handleAddTask}
             onEditTask={handleSaveEdit}
@@ -167,19 +338,16 @@ export default function KanbanBoard() {
             onCloseEdit={handleCloseEdit}
             open={isModalOpen}
             onOpenChange={setIsModalOpen}
+            teams={teamsList}
           />
         </div>
       </div>
 
-      {/* ... rest of your DndContext and columns remain the same ... */}
-
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
-        onDragOver={handleDragOver}
-        onDragEnd={() => {}} // You can keep it empty or implement if needed
+        onDragEnd={handleDragEnd}
       >
-        {/* Your existing columns rendering */}
         <div className="space-y-4">
           {teams.length === 0 ? (
             <div className="text-center py-20 text-slate-500">
@@ -197,14 +365,13 @@ export default function KanbanBoard() {
                       {team}
                     </div>
                     <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-                      {Object.values(groupedTasks[team] || {}).flat().length}{" "}
-                      tasks
+                      {Object.values(board[team] || {}).flat().length} tasks
                     </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 overflow-x-auto">
                   {statuses.map((status) => {
-                    const columnTasks = groupedTasks[team]?.[status] || [];
+                    const columnTasks = board[team]?.[status] || [];
                     return (
                       <KanbanColumn
                         key={`${team}-${status}`}
@@ -215,7 +382,6 @@ export default function KanbanBoard() {
                           StatusColors[status as keyof typeof StatusColors]
                         }
                         onTaskClick={setSelectedTaskForDetail}
-                        isCollapsedByDefault={false}
                       />
                     );
                   })}
@@ -230,7 +396,7 @@ export default function KanbanBoard() {
         task={selectedTaskForDetail}
         open={!!selectedTaskForDetail}
         onClose={() => setSelectedTaskForDetail(null)}
-        onEdit={handleEditFromDetail} // ← Updated to use new handler
+        onEdit={handleEditFromDetail}
       />
     </div>
   );

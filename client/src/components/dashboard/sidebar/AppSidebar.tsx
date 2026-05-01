@@ -143,11 +143,19 @@ const Admin = [
   },
 ];
 
+const general = [
+  {
+    title: "Settings",
+    url: "settings",
+  },
+];
+
 // ✅ Export all routes for DashboardLayout header
 export const allDashboardRoutes = [
   ...Application,
   ...HrManagement,
   ...Admin,
+  ...general
 ];
 
 // =========================================

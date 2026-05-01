@@ -1,5 +1,3 @@
-"use client";
-
 import { TrendingUp } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 
@@ -18,15 +16,6 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
-const chartData = [
-  { department: "Engineering", employees: 124 },
-  { department: "Marketing", employees: 68 },
-  { department: "Design", employees: 45 },
-  { department: "Finance", employees: 32 },
-  { department: "HR", employees: 18 },
-  { department: "Sales", employees: 57 },
-];
-
 const COLORS = [
   "#111827",
   "#1f2937",
@@ -36,26 +25,61 @@ const COLORS = [
   "#111827",
 ];
 
-export function DepartmentHeadcountChart() {
+interface DepartmentHeadcountChartProps {
+  data?: { department?: string; team?: string; count: number }[];
+}
+
+export function DepartmentHeadcountChart({
+  data = [],
+}: DepartmentHeadcountChartProps) {
+  // Transform API data to chart format
+   const chartData = data.map((item) => ({
+     department: item.department || item.team || "Unknown",
+     employees: item.count,
+   }));
+
   const totalEmployees = chartData.reduce(
     (sum, item) => sum + item.employees,
     0,
   );
+
+  const currentDate = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  if (chartData.length === 0) {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Department Headcount</CardTitle>
+          <CardDescription>
+            Number of employees across departments
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-[350px]">
+          <p className="text-sm text-neutral-500">
+            No department data available
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full">
       <CardHeader>
         <CardTitle>Department Headcount</CardTitle>
         <CardDescription>
-          Number of employees across departments (as of April 2026)
+          Number of employees across departments (as of {currentDate})
         </CardDescription>
       </CardHeader>
-      <CardContent className="">
+      <CardContent>
         <ChartContainer config={{}} className="h-[350px] w-full">
           <BarChart
             data={chartData}
             layout="vertical"
-            margin={{ top: 20, right: 20, left: 90, bottom: 20 }} // Increased left margin for better alignment
+            margin={{ top: 20, right: 20, left: 90, bottom: 20 }}
           >
             <CartesianGrid
               horizontal={false}
@@ -63,19 +87,18 @@ export function DepartmentHeadcountChart() {
               stroke="#f1f5f9"
             />
 
-            {/* Left-aligned Department Names */}
             <YAxis
               dataKey="department"
               type="category"
               tickLine={false}
               axisLine={false}
-              tickMargin={90} // Extra space between text and bars
-              width={10} // Wider area for department names
+              tickMargin={90}
+              width={10}
               tick={{
                 fill: "#475569",
                 fontSize: 14.5,
                 fontWeight: 500,
-                textAnchor: "start", // Forces left alignment
+                textAnchor: "start",
               }}
             />
 
@@ -86,12 +109,7 @@ export function DepartmentHeadcountChart() {
               content={<ChartTooltipContent indicator="line" />}
             />
 
-            {/* Thicker & Nicer Bars */}
-            <Bar
-              dataKey="employees"
-              radius={10}
-              barSize={48} // Thicker bars
-            >
+            <Bar dataKey="employees" radius={10} barSize={48}>
               {chartData.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
@@ -108,7 +126,7 @@ export function DepartmentHeadcountChart() {
           Total Workforce <TrendingUp className="h-4 w-4" />
         </div>
         <div className="text-muted-foreground">
-          {totalEmployees} employees across 6 departments
+          {totalEmployees} employees across {chartData.length} departments
         </div>
       </CardFooter>
     </Card>

@@ -1,3 +1,4 @@
+// components/dashboard/kanban/KanbanColumn.tsx
 import { useDroppable } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -6,14 +7,14 @@ import {
 import { TaskCard } from "./TaskCard";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
-import type { Task } from "@/types/types";
+import type { KanbanTask } from "@/services/kanban.service";
 
 interface KanbanColumnProps {
   team: string;
   status: string;
-  tasks: Task[];
+  tasks: KanbanTask[];
   colorClass: string;
-  onTaskClick: (task: Task) => void;
+  onTaskClick: (task: KanbanTask) => void;
   isCollapsedByDefault?: boolean;
 }
 
@@ -29,18 +30,19 @@ export function KanbanColumn({
 
   const droppableId = `${team}-${status}`;
 
-  const { setNodeRef } = useDroppable({
+  const { setNodeRef, isOver } = useDroppable({
     id: droppableId,
   });
 
   return (
     <div
       ref={setNodeRef}
-      className="flex flex-col min-h-125 rounded-xl border"
+      className={`flex flex-col min-h-125 rounded-xl border transition-colors ${
+        isOver ? "border-blue-400 bg-blue-50/50" : ""
+      }`}
     >
-      {/* Column Header */}
       <div
-        className={`px-5 py-4 flex items-center justify-between border-b bg-white rounded-t-xl cursor-pointer`}
+        className="px-5 py-4 flex items-center justify-between border-b bg-white rounded-t-xl cursor-pointer"
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
         <div className="flex items-center gap-3">

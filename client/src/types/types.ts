@@ -21,6 +21,7 @@ export interface AddTaskModalProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   initialDueDate?: string;
+  teams?: { id: string; name: string }[];
 }
 
 export interface EmailTemplate {

@@ -112,8 +112,8 @@ export class UserService {
         phone: users.phone,
         roleId: workspaceMembers.roleId,
         role: roles.name,
-        team: users.team,
-        teamId: users.teamId,
+        team: teams.name,
+        teamId: workspaceMembers.teamId,
         isActive: users.isActive,
         emailVerified: users.emailVerified,
         avatar: users.avatar,
@@ -125,6 +125,7 @@ export class UserService {
       .from(workspaceMembers)
       .innerJoin(users, eq(workspaceMembers.userId, users.id))
       .innerJoin(roles, eq(workspaceMembers.roleId, roles.id))
+      .leftJoin(teams, eq(workspaceMembers.teamId, teams.id))
       .where(
         search
           ? and(
@@ -171,21 +172,23 @@ export class UserService {
   /**
    * Get single user by ID
    */
-  async getUserById(userId: string) {
+  async getUserById(userId: string, workspaceId?: string) {
     const [user] = await db
       .select({
         id: users.id,
         name: users.name,
         email: users.email,
         phone: users.phone,
-        roleId: workspaceMembers.roleId,
+        roleId: workspaceId ? workspaceMembers.roleId : users.roleId,
         role: roles.name,
-        team: users.team,
-        teamId: users.teamId,
+        team: workspaceId ? teams.name : users.team,
+        teamId: workspaceId ? workspaceMembers.teamId : users.teamId,
         isActive: users.isActive,
         emailVerified: users.emailVerified,
         avatar: users.avatar,
-        workspaceId: workspaceMembers.workspaceId,
+        workspaceId: workspaceId
+          ? workspaceMembers.workspaceId
+          : users.workspaceId,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
         lastLoginAt: users.lastLoginAt,
@@ -193,7 +196,15 @@ export class UserService {
       .from(users)
       .innerJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
       .innerJoin(roles, eq(workspaceMembers.roleId, roles.id))
-      .where(eq(users.id, userId))
+      .leftJoin(teams, eq(workspaceMembers.teamId, teams.id))
+      .where(
+        workspaceId
+          ? and(
+              eq(users.id, userId),
+              eq(workspaceMembers.workspaceId, workspaceId),
+            )
+          : eq(users.id, userId),
+      )
       .limit(1);
 
     if (!user) {
@@ -413,6 +424,7 @@ export class UserService {
       userId: userId,
       workspaceId: workspaceId,
       roleId: roleId,
+      teamId: teamId,
     });
 
     // Update role in users table if changing
@@ -424,7 +436,9 @@ export class UserService {
     await activityService.logActivity({
       userId: createdById || userId,
       workspaceId: workspaceId,
-      action: isNewUser ? "user_created" : "user_added_to_workspace",
+      action: isNewUser
+        ? `invited ${name || email} to workspace`
+        : `added ${name || existingUser?.name} to workspace`,
       entityType: "user",
       entityId: userId,
       details: {
@@ -469,7 +483,6 @@ export class UserService {
   ) {
     const { name, email, roleId, team, phone, isActive } = input;
 
-    // Check if user exists
     const [existingUser] = await db
       .select()
       .from(users)
@@ -506,62 +519,124 @@ export class UserService {
       }
     }
 
-    // Build update object (only include fields that are provided)
+    // ✅ Only update GLOBAL user fields (name, email, phone, isActive)
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email;
-    if (roleId !== undefined) updateData.roleId = roleId;
     if (phone !== undefined) updateData.phone = phone;
     if (isActive !== undefined) updateData.isActive = isActive;
 
-    // ✅ If team name is provided, find the team ID
+    // Update user global fields
+    if (Object.keys(updateData).length > 0) {
+      await db.update(users).set(updateData).where(eq(users.id, userId));
+    }
+
+    // ✅ Check if member exists in workspace_members
+    const [existingMember] = await db
+      .select()
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.userId, userId),
+          eq(workspaceMembers.workspaceId, workspaceId),
+        ),
+      )
+      .limit(1);
+
+    if (!existingMember) {
+      // User not in workspace_members - add them
+      const effectiveRoleId = roleId || existingUser.roleId;
+      await db.insert(workspaceMembers).values({
+        userId: userId,
+        workspaceId: workspaceId,
+        roleId: effectiveRoleId,
+      });
+      console.log(
+        `✅ Added user ${userId} to workspace_members for workspace ${workspaceId}`,
+      );
+    }
+
+    // ✅ Update workspace_members for role (workspace-specific!)
+    if (roleId) {
+      await db
+        .update(workspaceMembers)
+        .set({ roleId: roleId })
+        .where(
+          and(
+            eq(workspaceMembers.userId, userId),
+            eq(workspaceMembers.workspaceId, workspaceId),
+          ),
+        );
+      console.log(
+        `✅ Updated role in workspace_members for user ${userId} to ${roleId}`,
+      );
+    }
+
+    // ✅ Update team in workspace_members (workspace-specific!)
     if (team !== undefined) {
-      if (team) {
+      if (team && team.trim() !== "") {
+        // Look up the team in this workspace
         const [teamRecord] = await db
           .select({ id: teams.id, name: teams.name })
           .from(teams)
-          .where(
-            and(
-              eq(teams.name, team),
-              eq(teams.workspaceId, existingUser.workspaceId),
-            ),
-          )
+          .where(and(eq(teams.name, team), eq(teams.workspaceId, workspaceId)))
           .limit(1);
 
+        console.log(
+          `🔵 Team lookup for "${team}" in workspace ${workspaceId}:`,
+          teamRecord ? "FOUND" : "NOT FOUND",
+        );
+
         if (teamRecord) {
-          updateData.team = teamRecord.name;
-          updateData.teamId = teamRecord.id; // ✅ Set teamId
+          await db
+            .update(workspaceMembers)
+            .set({ teamId: teamRecord.id })
+            .where(
+              and(
+                eq(workspaceMembers.userId, userId),
+                eq(workspaceMembers.workspaceId, workspaceId),
+              ),
+            );
+          console.log(
+            `✅ Updated team in workspace_members to ${teamRecord.name} (${teamRecord.id})`,
+          );
         } else {
-          // Team not found, set to null
-          updateData.team = null;
-          updateData.teamId = null;
+          console.log(
+            `⚠️ Team "${team}" not found in workspace ${workspaceId}`,
+          );
         }
       } else {
-        // Team explicitly set to empty/null
-        updateData.team = null;
-        updateData.teamId = null; // ✅ Clear teamId
+        // Clear team
+        await db
+          .update(workspaceMembers)
+          .set({ teamId: null })
+          .where(
+            and(
+              eq(workspaceMembers.userId, userId),
+              eq(workspaceMembers.workspaceId, workspaceId),
+            ),
+          );
+        console.log(`✅ Cleared team in workspace_members`);
       }
     }
 
-    await db.update(users).set(updateData).where(eq(users.id, userId));
-
     // Log activity
-    await activityService.logActivity({
-      userId: updatedById,
-      workspaceId: workspaceId,
-      action: "user_updated",
-      entityType: "user",
-      entityId: userId,
-      details: {
-        userName: name || existingUser.name,
-        userEmail: email || existingUser.email,
-        changes: input,
-      },
-    });
+    // User Updated
+await activityService.logActivity({
+  userId: updatedById,
+  workspaceId: workspaceId,
+  action: `updated user ${name || existingUser.name}`,
+  entityType: "user",
+  entityId: userId,
+  details: {
+    userName: name || existingUser.name,
+    userEmail: email || existingUser.email,
+    changes: input,
+  },
+});
 
-    return this.getUserById(userId);
+    return this.getUserById(userId, workspaceId);
   }
-  // src/modules/users/user.service.ts
 
   /**
    * Delete user and all related records
@@ -619,7 +694,7 @@ export class UserService {
     await activityService.logActivity({
       userId: deletedById,
       workspaceId: workspaceId,
-      action: "user_deleted",
+      action: `removed user ${user.name}`,
       entityType: "user",
       entityId: userId,
       details: { userName: user.name, userEmail: user.email },
@@ -732,5 +807,29 @@ export class UserService {
    */
   async getAllPermissions() {
     return db.select().from(permissions);
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!user) throw new Error("User not found");
+
+    const isValid = await argon2.verify(user.password, currentPassword);
+    if (!isValid) throw new Error("Current password is incorrect");
+
+    const hashedPassword = await argon2.hash(newPassword);
+    await db
+      .update(users)
+      .set({ password: hashedPassword })
+      .where(eq(users.id, userId));
+
+    return { success: true };
   }
 }

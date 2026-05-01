@@ -34,12 +34,16 @@ export interface AuthResponse {
     name: string;
     role: string;
     team: string | null;
+    teamId?: string | null;
+    phone?: string | null;
     workspaceId: string;
     workspaceName: string;
     avatar: string | null;
     permissions: string[];
     avatarInitials: string;
     emailVerified: boolean;
+    lastLoginAt?: string | null;
+    lastLoginIp?: string | null;
     workspaces: {
       workspaceId: string;
       workspaceName: string;

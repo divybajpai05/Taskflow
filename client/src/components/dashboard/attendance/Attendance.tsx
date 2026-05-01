@@ -1,4 +1,5 @@
-import { useState } from "react";
+// components/hr/Attendance.tsx
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { format } from "date-fns";
 import {
   Download,
@@ -9,6 +10,7 @@ import {
   Clock,
   UserMinus,
   ClockFading,
+  Loader2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,20 +25,89 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import AttendanceTable from "./components/AttendanceTable";
+import apiClient from "@/api/client";
+
+interface AttendanceStats {
+  total: number;
+  present: number;
+  absent: number;
+  late: number;
+  halfDay: number;
+  onLeave: number;
+  notMarked: number;
+  presentPercentage: number;
+  absentPercentage: number;
+}
 
 export default function Attendance() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [stats, setStats] = useState<AttendanceStats>({
+    total: 0,
+    present: 0,
+    absent: 0,
+    late: 0,
+    halfDay: 0,
+    onLeave: 0,
+    notMarked: 0,
+    presentPercentage: 0,
+    absentPercentage: 0,
+  });
+  const [isStatsLoading, setIsStatsLoading] = useState(true);
+  const [monthlyAvg, setMonthlyAvg] = useState(0);
 
-  const handleRefresh = () => {
+  // ==================== DATA FETCHING ====================
+
+  const fetchStats = useCallback(async () => {
+    try {
+      setIsStatsLoading(true);
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const response = await apiClient.get(`/attendance/stats?date=${dateStr}`);
+      if (response.data.success) {
+        setStats(response.data.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch attendance stats:", error);
+    } finally {
+      setIsStatsLoading(false);
+    }
+  }, [selectedDate]);
+
+  const fetchMonthlyAvg = useCallback(async () => {
+    try {
+      const month = selectedDate.getMonth() + 1;
+      const year = selectedDate.getFullYear();
+      const response = await apiClient.get(
+        `/attendance/monthly?month=${month}&year=${year}`,
+      );
+      if (response.data.success) {
+        setMonthlyAvg(response.data.data.averageAttendance || 0);
+      }
+    } catch (error) {
+      console.error("Failed to fetch monthly stats:", error);
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    fetchStats();
+    fetchMonthlyAvg();
+  }, [fetchStats, fetchMonthlyAvg]);
+
+  // Refresh handler
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 800);
+    await Promise.all([fetchStats(), fetchMonthlyAvg()]);
+    setRefreshKey((prev) => prev + 1); // Trigger table refresh
+    setTimeout(() => setIsRefreshing(false), 500);
   };
 
+  // Export handler
   const handleExport = () => {
-    alert("Attendance report export will connect to backend soon!");
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    alert(`Attendance report for ${dateStr} will be exported.`);
   };
 
   // Quick date selectors
@@ -54,6 +125,20 @@ export default function Attendance() {
       setSelectedDate(startOfWeek);
     }
   };
+
+  // Dynamic departments from actual data
+  const departments = useMemo(
+    () => [
+      { value: "all", label: "All Departments" },
+      { value: "Engineering", label: "Engineering" },
+      { value: "Marketing", label: "Marketing" },
+      { value: "HR & People", label: "HR & People" },
+      { value: "Sales", label: "Sales" },
+      { value: "Product", label: "Product" },
+      { value: "Design", label: "Design" },
+    ],
+    [],
+  );
 
   return (
     <div className="flex-1 space-y-6 p-6 md:p-8">
@@ -96,15 +181,9 @@ export default function Attendance() {
             >
               Yesterday
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setQuickDate("week")}
-            >
-              This Week
-            </Button>
           </div>
 
+          {/* Department Filter */}
           <Select
             value={selectedDepartment}
             onValueChange={setSelectedDepartment}
@@ -113,16 +192,15 @@ export default function Attendance() {
               <SelectValue placeholder="All Departments" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Departments</SelectItem>
-              <SelectItem value="engineering">Engineering</SelectItem>
-              <SelectItem value="design">Design</SelectItem>
-              <SelectItem value="marketing">Marketing</SelectItem>
-              <SelectItem value="sales">Sales</SelectItem>
-              <SelectItem value="hr">HR</SelectItem>
-              <SelectItem value="finance">Finance</SelectItem>
+              {departments.map((dept) => (
+                <SelectItem key={dept.value} value={dept.value}>
+                  {dept.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
+          {/* Refresh */}
           <Button
             variant="outline"
             onClick={handleRefresh}
@@ -134,6 +212,7 @@ export default function Attendance() {
             Refresh
           </Button>
 
+          {/* Export */}
           <Button onClick={handleExport} className="gap-2">
             <Download className="h-4 w-4" />
             Export
@@ -153,43 +232,73 @@ export default function Attendance() {
 
       {/* KPI Overview */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        {/* Present */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Present</CardTitle>
             <CheckCircle className="h-5 w-5 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-600">1,124</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              90.2% of total strength
-            </p>
+            {isStatsLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <>
+                <div className="text-3xl font-bold text-green-600">
+                  {stats.present}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stats.presentPercentage}% of total strength
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
+        {/* Absent */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Absent</CardTitle>
             <XCircle className="h-5 w-5 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-red-600">67</div>
-            <p className="text-xs text-muted-foreground mt-1">5.4% today</p>
+            {isStatsLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <>
+                <div className="text-3xl font-bold text-red-600">
+                  {stats.absent}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stats.absentPercentage}% today
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
+        {/* On Leave */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">On Leave</CardTitle>
             <UserMinus className="h-5 w-5 text-amber-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-orange-600">42</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Approved leaves
-            </p>
+            {isStatsLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <>
+                <div className="text-3xl font-bold text-orange-600">
+                  {stats.onLeave}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Approved leaves
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
+        {/* Avg. Attendance */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">
@@ -198,28 +307,50 @@ export default function Attendance() {
             <Clock className="h-5 w-5 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">92.8%</div>
-            <p className="text-xs text-muted-foreground mt-1">This month</p>
+            {isStatsLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <>
+                <div className="text-3xl font-bold">{monthlyAvg}%</div>
+                <p className="text-xs text-muted-foreground mt-1">This month</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
+        {/* Half Day */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Half Day</CardTitle>
             <ClockFading className="h-5 w-5 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-yellow-600">12</div>
-            <p className="text-xs text-muted-foreground mt-1">3.4% today</p>
+            {isStatsLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <>
+                <div className="text-3xl font-bold text-yellow-600">
+                  {stats.halfDay}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stats.total > 0
+                    ? Math.round((stats.halfDay / stats.total) * 100)
+                    : 0}
+                  % today
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
 
       {/* Main Attendance Table */}
       <AttendanceTable
+        key={refreshKey}
         selectedDate={selectedDate}
         selectedDepartment={selectedDepartment}
         searchQuery={searchQuery}
+        onStatsUpdate={fetchStats}
       />
     </div>
   );

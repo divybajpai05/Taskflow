@@ -9,6 +9,11 @@ import activityRoutes from "./modules/activity/activity.routes";
 import workspaceRoutes from "./modules/workspaces/workspace.routes";
 import teamRoutes from "./modules/teams/team.routes";
 import emailRoutes from "./modules/email/email.routes";
+import attendanceRoutes from "./modules/attendance/attendance.routes";
+import leaveRoutes from "./modules/leaves/leave.routes";
+import taskRoutes from "./modules/tasks/task.routes";
+import dashboardRoutes from "./modules/dashboard/dashboard.routes";
+import kanbanRoutes from "./modules/kanban/kanban.routes";
 
 
 import { db } from "./db/drizzle";
@@ -66,6 +71,12 @@ app.use("/api/activities", activityRoutes);
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/teams", teamRoutes);
 app.use("/api/email", emailRoutes);
+app.use("/api/attendance", attendanceRoutes);
+app.use("/api/leaves", leaveRoutes);
+app.use("/api/tasks", taskRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/kanban", kanbanRoutes);
+
 
 
 // Add this to your server.ts temporarily

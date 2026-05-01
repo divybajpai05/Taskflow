@@ -389,4 +389,92 @@ export class EmailService {
 
     await this.sendEmail(emailData);
   }
+
+  // src/modules/auth/email.service.ts
+
+  /**
+   * Send task assignment email
+   */
+  async sendTaskAssignmentEmail(
+    email: string,
+    name: string,
+    taskTitle: string,
+    taskDescription: string,
+    assignedByName: string,
+    dueDate: string,
+    workspaceName: string,
+  ): Promise<void> {
+    const dashboardLink = `${config.frontendUrl}/dashboard/tasks`;
+
+    const emailData = {
+      sender: this.sender,
+      to: [{ email, name }],
+      subject: `📋 New Task Assigned: ${taskTitle}`,
+      htmlContent: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f9fafb; }
+          .container { max-width: 550px; margin: 0 auto; padding: 20px; }
+          .header { text-align: center; padding: 25px 20px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 12px 12px 0 0; }
+          .header h1 { color: #fff; margin: 0; font-size: 24px; font-weight: 700; }
+          .header p { color: #e0e7ff; margin: 6px 0 0 0; font-size: 14px; }
+          .content { background: #fff; padding: 25px; border-radius: 0 0 12px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+          .task-box { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 16px; margin: 16px 0; }
+          .task-box h3 { color: #166534; margin: 0 0 10px 0; font-size: 16px; }
+          .task-detail { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #bbf7d0; font-size: 13px; }
+          .task-detail:last-child { border-bottom: none; }
+          .task-label { font-weight: 600; color: #15803d; }
+          .task-value { color: #166534; }
+          .cta-button { display: inline-block; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff !important; text-decoration: none; padding: 12px 30px; border-radius: 8px; font-size: 15px; font-weight: 600; margin: 16px 0; text-align: center; }
+          .footer { margin-top: 20px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #6b7280; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>📋 New Task Assigned</h1>
+            <p>${workspaceName} - Taskflow</p>
+          </div>
+          <div class="content">
+            <p>Hi <strong>${name}</strong>,</p>
+            <p><strong>${assignedByName}</strong> has assigned you a new task in <strong>${workspaceName}</strong>.</p>
+            
+            <div class="task-box">
+              <h3>📌 ${taskTitle}</h3>
+              <div class="task-detail">
+                <span class="task-label">Description</span>
+                <span class="task-value">${taskDescription || "No description provided"}</span>
+              </div>
+              <div class="task-detail">
+                <span class="task-label">Due Date</span>
+                <span class="task-value">${dueDate || "Not set"}</span>
+              </div>
+              <div class="task-detail">
+                <span class="task-label">Assigned By</span>
+                <span class="task-value">${assignedByName}</span>
+              </div>
+            </div>
+            
+            <p style="color: #6b7280; font-size: 14px;">Please review this task at your earliest convenience and update the status as you progress.</p>
+            
+            <div style="text-align: center;">
+              <a href="${dashboardLink}" class="cta-button">View My Tasks</a>
+            </div>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} Taskflow. All rights reserved.</p>
+            <p>You received this email because a task was assigned to you on Taskflow.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+    };
+
+    await this.sendEmail(emailData);
+    console.log(`✅ Task assignment email sent to ${email}`);
+  }
 }

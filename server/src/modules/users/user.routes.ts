@@ -5,12 +5,25 @@ import {
   authenticate,
   requirePermission,
 } from "../../middlewares/auth.middleware";
+import { UserService } from "./user.service";
 
 const router = Router();
 const userController = new UserController();
+const userService = new UserService()
 
 // All routes require authentication + user_management permission
 router.use(authenticate);
+
+router.get("/workspace-members", async (req, res, next) => {
+  try {
+    const workspaceId = req.user!.workspaceId;
+    const members = await userService.getWorkspaceUsers(workspaceId);
+    res.json({ success: true, data: members });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.use(requirePermission("user_management"));
 
 // User CRUD
@@ -31,5 +44,9 @@ router.delete(
 // Roles & Permissions (reference data)
 router.get("/roles/list", userController.getRoles);
 router.get("/permissions/list", userController.getPermissions);
+
+// change password
+router.put("/password", authenticate, userController.changePassword);
+
 
 export default router;

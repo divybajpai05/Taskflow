@@ -20,6 +20,7 @@ import WorkspaceLoader from "./components/loaders/WorkspaceLoader";
 import ActivityLogLoader from "./components/loaders/ActivityLogLoader";
 import ProtectedRoute from "./components/security/ProtectedRoute";
 import { RoleManagementPage } from "./components/dashboard/role_management/RoleManagementPage";
+import SettingsLoader from "./components/loaders/SettingsLoader";
 
 // =========================================
 // Lazy Loaded Page Components
@@ -334,7 +335,7 @@ export default function App() {
           <Route
             path="settings"
             element={
-              <Suspense fallback={<Loading />}>
+              <Suspense fallback={<SettingsLoader />}>
                 <Settings />
               </Suspense>
             }

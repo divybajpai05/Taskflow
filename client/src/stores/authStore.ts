@@ -11,11 +11,16 @@ export interface User {
   name: string;
   role: string;
   team: string | null;
+  teamId?: string | null;
   avatar: string | null;
   permissions: string[];
   avatarInitials: string;
   emailVerified: boolean;
-  
+
+  phone?: string | null;
+  lastLoginAt?: string | null;
+  lastLoginIp?: string | null;
+
   // ✅ NEW: Multiple workspaces support
   workspaces: {
     workspaceId: string;

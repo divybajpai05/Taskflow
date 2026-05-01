@@ -33,6 +33,9 @@ export const workspaceMembers = mysqlTable(
     roleId: varchar("role_id", { length: 36 })
       .notNull()
       .references(() => roles.id),
+    teamId: varchar("team_id", { length: 36 }).references(() => teams.id, {
+      onDelete: "set null",
+    }),
     joinedAt: timestamp("joined_at").defaultNow().notNull(),
   },
   (table) => [
@@ -164,6 +167,7 @@ export const tasks = mysqlTable(
       "REVIEW",
       "DONE",
       "CANCELLED",
+      "ON_HOLD",
     ]).default("TODO"),
     priority: mysqlEnum("priority", [
       "LOW",
@@ -193,6 +197,22 @@ export const tasks = mysqlTable(
     index("tasks_assignee_idx").on(table.assigneeId),
     index("tasks_status_idx").on(table.status),
   ],
+);
+
+export const taskAssignees = mysqlTable(
+  "task_assignees",
+  {
+    id: varchar("id", { length: 36 })
+      .primaryKey()
+      .default(sql`(UUID())`),
+    taskId: varchar("task_id", { length: 36 })
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (table) => [unique("task_user_unique").on(table.taskId, table.userId)],
 );
 
 // Activity Logs (Audit trail - highly recommended)

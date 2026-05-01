@@ -226,6 +226,23 @@ export const WorkspaceManagement: React.FC = () => {
     }
   };
 
+  // const handleSwitchWorkspace = async (
+  //   workspaceId: string,
+  //   workspaceName: string,
+  // ) => {
+  //   const user = useAuthStore.getState().user;
+  //   if (!user) return;
+
+  //   // ✅ Update Zustand store
+  //   useAuthStore.getState().updateUser({
+  //     activeWorkspaceId: workspaceId,
+  //     activeWorkspaceName: workspaceName,
+  //   });
+
+  //   toast.success(`Switched to "${workspaceName}"`);
+  //   navigate("/dashboard");
+  // };
+
   const handleSwitchWorkspace = async (
     workspaceId: string,
     workspaceName: string,
@@ -233,14 +250,38 @@ export const WorkspaceManagement: React.FC = () => {
     const user = useAuthStore.getState().user;
     if (!user) return;
 
-    // ✅ Update Zustand store
-    useAuthStore.getState().updateUser({
-      activeWorkspaceId: workspaceId,
-      activeWorkspaceName: workspaceName,
-    });
+    setSwitchingWorkspace(workspaceId);
+    try {
+      const response = await apiClient.post(
+        `/workspaces/${workspaceId}/switch`,
+      );
 
-    toast.success(`Switched to "${workspaceName}"`);
-    navigate("/dashboard");
+      console.log(response);
+
+      if (response.data.success) {
+        const { id, name, accessToken, permissions, role } = response.data.data;
+
+        useAuthStore
+          .getState()
+          .setAuth(
+            {
+              ...user,
+              activeWorkspaceId: id,
+              activeWorkspaceName: name,
+              role: role,
+              permissions: permissions,
+            },
+            accessToken,
+          );
+
+        toast.success(`Switched to "${name}"`);
+        navigate("/dashboard");
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to switch workspace");
+    } finally {
+      setSwitchingWorkspace(null);
+    }
   };
 
   const openEditDialog = (workspace: Workspace) => {

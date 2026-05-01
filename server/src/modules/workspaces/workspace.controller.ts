@@ -1,8 +1,14 @@
 // src/modules/workspaces/workspace.controller.ts
 import { Request, Response, NextFunction } from "express";
 import { WorkspaceService } from "./workspace.service";
+import { workspaceMembers } from "../../db/schema";
+import { db } from "../../db/drizzle";
+import { and, eq } from "drizzle-orm";
+import { generateTokens } from "../../utils/jwt";
+import { AuthService } from "../auth/auth.service";
 
 const workspaceService = new WorkspaceService();
+const authService = new AuthService();
 
 export class WorkspaceController {
   /**
@@ -114,16 +120,39 @@ export class WorkspaceController {
       const id = req.params.id as string;
       const userId = req.user!.id;
 
-      // Get the workspace
       const workspace = await workspaceService.getWorkspaceById(id);
 
-      // Check if user owns this workspace
-      if (workspace.ownerId !== userId) {
+      const [member] = await db
+        .select()
+        .from(workspaceMembers)
+        .where(
+          and(
+            eq(workspaceMembers.userId, userId),
+            eq(workspaceMembers.workspaceId, id),
+          ),
+        )
+        .limit(1);
+
+      if (!member) {
         return res.status(403).json({
           success: false,
-          error: "You can only switch to workspaces you own",
+          error: "You are not a member of this workspace",
         });
       }
+
+      // ✅ Get user's permissions for THIS workspace
+      const userWithPerms = await authService.getUserWithPermissions(
+        userId,
+        id,
+      );
+
+      // Generate new token with correct permissions
+      const tokens = generateTokens({
+        userId: userId,
+        email: req.user!.email,
+        workspaceId: workspace.id,
+        roleId: member.roleId,
+      });
 
       res.json({
         success: true,
@@ -131,6 +160,10 @@ export class WorkspaceController {
         data: {
           id: workspace.id,
           name: workspace.name,
+          accessToken: tokens.accessToken,
+          permissions: userWithPerms.permissions, // ✅ Include fresh permissions
+          role: userWithPerms.role, // ✅ Include role name
+          roleId: member.roleId,
         },
       });
     } catch (error: any) {

@@ -1,3 +1,4 @@
+// components/dashboard/kanban/TaskDetailModal.tsx
 import {
   Dialog,
   DialogContent,
@@ -6,13 +7,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { Task } from "@/types/types";
+import type { KanbanTask } from "@/services/kanban.service";
 
 interface TaskDetailModalProps {
-  task: Task | null;
+  task: KanbanTask | null;
   open: boolean;
   onClose: () => void;
-  onEdit: (task: Task) => void;
+  onEdit: (task: KanbanTask) => void;
 }
 
 export function TaskDetailModal({
@@ -31,9 +32,11 @@ export function TaskDetailModal({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          <div>
-            <p className="text-slate-600">{task.description}</p>
-          </div>
+          {task.description && (
+            <div>
+              <p className="text-slate-600">{task.description}</p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-6">
             <div>
@@ -52,13 +55,13 @@ export function TaskDetailModal({
               <p className="text-xs uppercase tracking-widest text-slate-500 mb-1">
                 Team
               </p>
-              <p>{task.selectTeam}</p>
+              <p>{task.teamName || "No Team"}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-500 mb-1">
                 Due Date
               </p>
-              <p>{task.dueDate}</p>
+              <p>{task.dueDate || "Not set"}</p>
             </div>
           </div>
 
@@ -67,12 +70,23 @@ export function TaskDetailModal({
               Assignees
             </p>
             <div className="flex flex-wrap gap-2">
-              {task.selectMember.map((m) => (
-                <Badge key={m} variant="secondary">
-                  {m}
-                </Badge>
-              ))}
+              {task.assignees.length > 0 ? (
+                task.assignees.map((m) => (
+                  <Badge key={m} variant="secondary">
+                    {m}
+                  </Badge>
+                ))
+              ) : (
+                <p className="text-sm text-slate-400">No assignees</p>
+              )}
             </div>
+          </div>
+
+          <div>
+            <p className="text-xs uppercase tracking-widest text-slate-500 mb-1">
+              Created by
+            </p>
+            <p>{task.creatorName || "Unknown"}</p>
           </div>
         </div>
 
