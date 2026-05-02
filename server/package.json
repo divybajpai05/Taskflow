@@ -18,6 +18,10 @@
   "type": "commonjs",
   "dependencies": {
     "@getbrevo/brevo": "^5.0.4",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "argon2": "^0.44.0",
     "axios": "^1.15.0",
     "bcrypt": "^6.0.0",
@@ -35,10 +39,6 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/cookie-parser": "^1.4.10",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "@types/node": "^25.6.0",
     "@types/uuid": "^10.0.0",
