@@ -1,53 +1,61 @@
-// src/db/debug-seed.ts
-import { db } from "./drizzle"; // ✅ Fixed: ./drizzle (same folder)
-import { roles, permissions, rolePermissions } from "./schema"; // ✅ Fixed: ./schema
+// src/db/seed.ts
+import { db } from "./drizzle";
+import { roles, permissions, rolePermissions } from "./schema";
 import { v4 as uuidv4 } from "uuid";
 import "dotenv/config";
 import { eq } from "drizzle-orm";
 
 console.log("🚀 Seeder starting...");
-console.log("Step 1: Imports loaded");
 
 const ALL_PERMISSIONS = [
+  // Dashboard & Tasks
   "dashboard_access",
   "my_tasks",
   "kanban_board",
   "calendar",
-  "analytics",
+
+  // HR Module
   "hr_dashboard",
   "attendance",
   "leave_management",
   "hr_calendar",
+
+  // Communication
   "email_center",
+
+  // Teams
   "team_management",
-  "user_management", // ✅ Admin ONLY
-  "workspaces", // ✅ Admin ONLY
-  "activity_logs", // ✅ Everyone
+
+  // Analytics
+  "analytics",
+
+  // Admin (restricted)
+  "user_management",
+  "workspaces",
+  "role_management",
+  "activity_logs",
 ];
 
-async function debugSeed() {
-  console.log("Step 2: Function started");
+async function seed() {
+  console.log("Testing database connection...");
 
   try {
-    // Test database connection
-    console.log("Step 3: Testing database connection...");
+    // Test connection
     const testResult = await db.select().from(roles).limit(1);
-    console.log(
-      "Step 4: Database connected, current roles:",
-      testResult.length,
-    );
+    console.log("Database connected, current roles:", testResult.length);
 
-    // Clear existing data
+    // Clear existing data in correct order (child tables first)
     console.log("\nClearing old data...");
     await db.delete(rolePermissions);
     await db.delete(permissions);
     await db.delete(roles);
     console.log("✅ Old data cleared");
 
-    // Insert permissions
+    // =========================================
+    // Insert ALL permissions
+    // =========================================
     console.log("\nInserting permissions...");
-    const permIds = new Map();
-    let permCount = 0;
+    const permIds = new Map<string, string>();
 
     for (const permName of ALL_PERMISSIONS) {
       const id = uuidv4();
@@ -57,16 +65,15 @@ async function debugSeed() {
         id,
         name: permName,
         description: permName.replace(/_/g, " ").toUpperCase(),
-        module: "core",
+        module: getModuleForPermission(permName),
       });
 
-      permCount++;
-      console.log(`  ✓ ${permCount}. ${permName}`);
+      console.log(`  ✓ ${permName}`);
     }
-    console.log(`✅ Inserted ${permCount} permissions\n`);
+    console.log(`✅ Inserted ${ALL_PERMISSIONS.length} permissions\n`);
 
     // =========================================
-    // ✅ Admin Role - ALL permissions
+    // ✅ ADMIN ROLE - ALL permissions
     // =========================================
     console.log("Creating Admin role...");
     const adminRoleId = uuidv4();
@@ -77,31 +84,32 @@ async function debugSeed() {
       isSystem: true,
     });
 
-    let mappingCount = 0;
     for (const [permName, permId] of permIds) {
       await db.insert(rolePermissions).values({
         roleId: adminRoleId,
         permissionId: permId,
       });
-      mappingCount++;
     }
-    console.log(`✅ Admin role created with ${mappingCount} permissions\n`);
+    console.log(
+      `✅ Admin role created with ALL ${ALL_PERMISSIONS.length} permissions\n`,
+    );
 
     // =========================================
-    // ✅ HR Role - NO user_management, NO workspaces
+    // ✅ HR ROLE - HR + Team Management (NO admin permissions)
     // =========================================
     console.log("Creating HR role...");
     const hrRoleId = uuidv4();
     await db.insert(roles).values({
       id: hrRoleId,
       name: "HR",
-      description: "HR Manager",
+      description: "HR Manager with HR module access",
       isSystem: true,
     });
 
     const hrPerms = [
       "dashboard_access",
       "my_tasks",
+      "kanban_board",
       "calendar",
       "hr_dashboard",
       "attendance",
@@ -109,10 +117,10 @@ async function debugSeed() {
       "hr_calendar",
       "email_center",
       "team_management",
-      "activity_logs", // ✅ Added
-      // ❌ user_management REMOVED
-      // ❌ workspaces REMOVED
+      "analytics",
+      "activity_logs",
     ];
+
     for (const permName of hrPerms) {
       const permId = permIds.get(permName);
       if (permId) {
@@ -125,14 +133,14 @@ async function debugSeed() {
     console.log(`✅ HR role created with ${hrPerms.length} permissions\n`);
 
     // =========================================
-    // ✅ Manager Role
+    // ✅ MANAGER ROLE - Team Management + Basic access
     // =========================================
     console.log("Creating Manager role...");
     const managerRoleId = uuidv4();
     await db.insert(roles).values({
       id: managerRoleId,
       name: "Manager",
-      description: "Team Manager",
+      description: "Team Manager with team-level access",
       isSystem: true,
     });
 
@@ -143,9 +151,9 @@ async function debugSeed() {
       "calendar",
       "analytics",
       "team_management",
-      "activity_logs", // ✅ Added
-      // ❌ user_management REMOVED
+      "activity_logs",
     ];
+
     for (const permName of managerPerms) {
       const permId = permIds.get(permName);
       if (permId) {
@@ -160,14 +168,14 @@ async function debugSeed() {
     );
 
     // =========================================
-    // ✅ Employee Role
+    // ✅ EMPLOYEE ROLE - Basic access only
     // =========================================
     console.log("Creating Employee role...");
     const employeeRoleId = uuidv4();
     await db.insert(roles).values({
       id: employeeRoleId,
       name: "Employee",
-      description: "Regular Employee",
+      description: "Regular Employee with basic access",
       isSystem: true,
     });
 
@@ -176,8 +184,9 @@ async function debugSeed() {
       "my_tasks",
       "kanban_board",
       "calendar",
-      "activity_logs", // ✅ Added
+      "activity_logs",
     ];
+
     for (const permName of employeePerms) {
       const permId = permIds.get(permName);
       if (permId) {
@@ -224,7 +233,40 @@ async function debugSeed() {
     }
 
     console.log("🎉 SEED COMPLETED SUCCESSFULLY!");
-    console.log("================================");
+    console.log("================================\n");
+
+    // Print quick reference
+    console.log("📋 Permission Matrix:");
+    console.log(
+      "┌──────────┬──────────────────────────────────────────────────────┐",
+    );
+    console.log(
+      "│ Role     │ Permissions                                           │",
+    );
+    console.log(
+      "├──────────┼──────────────────────────────────────────────────────┤",
+    );
+    console.log(
+      "│ Admin    │ ALL permissions                                      │",
+    );
+    console.log(
+      "│ HR       │ dashboard, tasks, kanban, calendar, HR module,      │",
+    );
+    console.log(
+      "│          │ team_management, analytics, activity_logs           │",
+    );
+    console.log(
+      "│ Manager  │ dashboard, tasks, kanban, calendar, analytics,      │",
+    );
+    console.log(
+      "│          │ team_management, activity_logs                      │",
+    );
+    console.log(
+      "│ Employee │ dashboard, tasks, kanban, calendar, activity_logs   │",
+    );
+    console.log(
+      "└──────────┴──────────────────────────────────────────────────────┘",
+    );
   } catch (error) {
     console.error("❌ SEED FAILED:", error);
   }
@@ -232,6 +274,32 @@ async function debugSeed() {
   process.exit(0);
 }
 
+/**
+ * Map permission to module for better organization
+ */
+function getModuleForPermission(permission: string): string {
+  if (
+    permission.startsWith("hr_") ||
+    ["attendance", "leave_management"].includes(permission)
+  )
+    return "hr";
+  if (
+    [
+      "user_management",
+      "workspaces",
+      "role_management",
+      "activity_logs",
+    ].includes(permission)
+  )
+    return "admin";
+  if (["my_tasks", "kanban_board", "calendar"].includes(permission))
+    return "tasks";
+  if (permission === "team_management") return "teams";
+  if (permission === "email_center") return "communication";
+  if (permission === "analytics") return "analytics";
+  return "general";
+}
+
 // Execute
-console.log("Calling debugSeed function...");
-debugSeed();
+console.log("Calling seed function...");
+seed();

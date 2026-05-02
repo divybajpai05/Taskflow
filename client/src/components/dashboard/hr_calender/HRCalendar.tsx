@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import apiClient from "@/api/client";
+import HRCalendarLoader from "@/components/loaders/HRCalendarLoader";
 
 interface AttendanceEvent {
   id: string;
@@ -284,9 +285,7 @@ const HRCalendar: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+        <HRCalendarLoader/>
     );
   }
 
@@ -331,7 +330,7 @@ const HRCalendar: React.FC = () => {
         </div>
 
         {/* Calendar */}
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+        <div className="bg-white overflow-hidden">
           <FullCalendar
             ref={calendarRef}
             plugins={[
