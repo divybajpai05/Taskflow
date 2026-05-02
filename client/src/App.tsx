@@ -65,8 +65,8 @@ const Attendance = lazy(
 const LeaveManagement = lazy(
   () => import("./components/dashboard/leave_management/Leave_Management"),
 );
-const HrCalendar = lazy(
-  () => import("./components/dashboard/hr_calender/Hr_Calendar"),
+const HRCalendar = lazy(
+  () => import("./components/dashboard/hr_calender/HRCalendar"),
 );
 const EmailCenter = lazy(
   () => import("./components/dashboard/email_center/Email_Center"),
@@ -147,41 +147,53 @@ export default function App() {
         >
           {/* Overview - All logged-in users */}
           <Route
-            index
-            element={
-              <Suspense fallback={<DashboardOverviewLoader />}>
-                <DashboardOverview />
-              </Suspense>
-            }
-          />
+            element={<ProtectedRoute requiredPermission="dashboard_access" />}
+          >
+            <Route
+              index
+              element={
+                <Suspense fallback={<DashboardOverviewLoader />}>
+                  <DashboardOverview />
+                </Suspense>
+              }
+            />
+          </Route>
 
           {/* ========================================= */}
           {/* Application Section                      */}
           {/* ========================================= */}
-          <Route
-            path="tasks"
-            element={
-              <Suspense fallback={<MyTasksLoader />}>
-                <Mytasks />
-              </Suspense>
-            }
-          />
-          <Route
-            path="kanban"
-            element={
-              <Suspense fallback={<KanbanBoardLoader />}>
-                <KanbanBoard />
-              </Suspense>
-            }
-          />
-          <Route
-            path="calendar"
-            element={
-              <Suspense fallback={<CalendarLoader />}>
-                <TaskFlowCalendar />
-              </Suspense>
-            }
-          />
+          <Route element={<ProtectedRoute requiredPermission="my_tasks" />}>
+            <Route
+              path="tasks"
+              element={
+                <Suspense fallback={<MyTasksLoader />}>
+                  <Mytasks />
+                </Suspense>
+              }
+            />
+          </Route>
+
+          <Route element={<ProtectedRoute requiredPermission="kanban_board" />}>
+            <Route
+              path="kanban"
+              element={
+                <Suspense fallback={<KanbanBoardLoader />}>
+                  <KanbanBoard />
+                </Suspense>
+              }
+            />
+          </Route>
+
+          <Route element={<ProtectedRoute requiredPermission="calendar" />}>
+            <Route
+              path="calendar"
+              element={
+                <Suspense fallback={<CalendarLoader />}>
+                  <TaskFlowCalendar />
+                </Suspense>
+              }
+            />
+          </Route>
 
           {/* Analytics - Specific permission required */}
           <Route element={<ProtectedRoute requiredPermission="analytics" />}>
@@ -251,7 +263,7 @@ export default function App() {
               path="hr-calendar"
               element={
                 <Suspense fallback={<HRCalendarLoader />}>
-                  <HrCalendar />
+                  <HRCalendar />
                 </Suspense>
               }
             />

@@ -1,6 +1,10 @@
-import React, { useMemo } from "react";
+// components/analytics/components/OverviewCharts.tsx
+import React, { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Loader2 } from "lucide-react";
+import { format } from "date-fns";
+import apiClient from "@/api/client";
 import {
   LineChart,
   Line,
@@ -17,9 +21,14 @@ import {
   Legend,
 } from "recharts";
 
-import { statusColors } from "@/lib/constant";
-
-const priorityColors: Record<string, string> = {
+const STATUS_COLORS: Record<string, string> = {
+  Done: "#22c55e",
+  "In progress": "#3b82f6",
+  Todo: "#eab308",
+  "On Hold": "#64748b",
+  Cancelled: "#ef4444",
+};
+const PRIORITY_COLORS: Record<string, string> = {
   Low: "#86efac",
   Medium: "#fcd34d",
   High: "#fb923c",
@@ -32,174 +41,73 @@ interface OverviewChartsProps {
   selectedTeam: string;
   selectedStatus: string;
   selectedPriority: string;
+  refreshKey?: number;
 }
 
-function OverviewCharts({
+const OverviewCharts: React.FC<OverviewChartsProps> = ({
   dateRange,
   selectedMember,
   selectedTeam,
   selectedStatus,
   selectedPriority,
-}: OverviewChartsProps) {
-  console.log("OverviewCharts Filters →", {
+  refreshKey,
+}) => {
+  const [chartData, setChartData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchCharts = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams();
+      if (dateRange.from)
+        params.append("dateFrom", format(dateRange.from, "yyyy-MM-dd"));
+      if (dateRange.to)
+        params.append("dateTo", format(dateRange.to, "yyyy-MM-dd"));
+      if (selectedMember !== "all") params.append("memberId", selectedMember);
+      if (selectedTeam !== "all") params.append("teamId", selectedTeam);
+      if (selectedStatus !== "all") params.append("status", selectedStatus);
+      if (selectedPriority !== "all")
+        params.append("priority", selectedPriority);
+
+      const response = await apiClient.get(
+        `/analytics/charts?${params.toString()}`,
+      );
+      if (response.data.success) setChartData(response.data.data);
+    } catch (error) {
+      console.error("Failed to fetch charts:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [
+    dateRange,
+    selectedMember,
     selectedTeam,
     selectedStatus,
     selectedPriority,
-  });
+  ]);
 
-  const teamMultiplier = selectedTeam === "all" ? 1 : 0.6;
+  useEffect(() => {
+    fetchCharts();
+  }, [fetchCharts, refreshKey]);
 
-  // Trend Data
-  const trendData = useMemo(
-    () => [
-      {
-        name: "Mar 29",
-        created: Math.floor(18 * teamMultiplier),
-        completed: Math.floor(12 * teamMultiplier),
-      },
-      {
-        name: "Mar 30",
-        created: Math.floor(24 * teamMultiplier),
-        completed: Math.floor(19 * teamMultiplier),
-      },
-      {
-        name: "Mar 31",
-        created: Math.floor(15 * teamMultiplier),
-        completed: Math.floor(22 * teamMultiplier),
-      },
-      {
-        name: "Apr 1",
-        created: Math.floor(28 * teamMultiplier),
-        completed: Math.floor(25 * teamMultiplier),
-      },
-      {
-        name: "Apr 2",
-        created: Math.floor(22 * teamMultiplier),
-        completed: Math.floor(18 * teamMultiplier),
-      },
-      {
-        name: "Apr 3",
-        created: Math.floor(19 * teamMultiplier),
-        completed: Math.floor(27 * teamMultiplier),
-      },
-      {
-        name: "Apr 4",
-        created: Math.floor(26 * teamMultiplier),
-        completed: Math.floor(24 * teamMultiplier),
-      },
-      {
-        name: "Apr 5",
-        created: Math.floor(31 * teamMultiplier),
-        completed: Math.floor(29 * teamMultiplier),
-      },
-      {
-        name: "Apr 6",
-        created: Math.floor(23 * teamMultiplier),
-        completed: Math.floor(21 * teamMultiplier),
-      },
-    ],
-    [teamMultiplier],
-  );
+  if (isLoading)
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  if (!chartData)
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        No data available
+      </div>
+    );
 
-  // Status Distribution Data
-  const statusData = useMemo(
-    () => [
-      {
-        name: "Done",
-        value: Math.floor(
-          selectedStatus === "all" || selectedStatus === "Done"
-            ? 142 * teamMultiplier
-            : 45,
-        ),
-        color: statusColors["Done"],
-      },
-      {
-        name: "In progress",
-        value: Math.floor(
-          selectedStatus === "all" || selectedStatus === "In progress"
-            ? 38 * teamMultiplier
-            : 12,
-        ),
-        color: statusColors["In progress"],
-      },
-      {
-        name: "Todo",
-        value: Math.floor(
-          selectedStatus === "all" || selectedStatus === "Todo"
-            ? 45 * teamMultiplier
-            : 8,
-        ),
-        color: statusColors["Todo"],
-      },
-      {
-        name: "On Hold",
-        value: Math.floor(
-          selectedStatus === "all" || selectedStatus === "On Hold"
-            ? 12 * teamMultiplier
-            : 3,
-        ),
-        color: statusColors["On Hold"],
-      },
-      {
-        name: "Cancelled",
-        value: Math.floor(
-          selectedStatus === "all" || selectedStatus === "Cancelled"
-            ? 8 * teamMultiplier
-            : 2,
-        ),
-        color: statusColors["Cancelled"],
-      },
-    ],
-    [selectedStatus, teamMultiplier],
-  );
-
-  // Priority Breakdown Data
-  const priorityData = useMemo(
-    () => [
-      {
-        name: "Low",
-        tasks: Math.floor(
-          selectedPriority === "all" || selectedPriority === "Low"
-            ? 67 * teamMultiplier
-            : 20,
-        ),
-        fill: priorityColors["Low"],
-      },
-      {
-        name: "Medium",
-        tasks: Math.floor(
-          selectedPriority === "all" || selectedPriority === "Medium"
-            ? 89 * teamMultiplier
-            : 30,
-        ),
-        fill: priorityColors["Medium"],
-      },
-      {
-        name: "High",
-        tasks: Math.floor(
-          selectedPriority === "all" || selectedPriority === "High"
-            ? 54 * teamMultiplier
-            : 15,
-        ),
-        fill: priorityColors["High"],
-      },
-      {
-        name: "Urgent",
-        tasks: Math.floor(
-          selectedPriority === "all" || selectedPriority === "Urgent"
-            ? 35 * teamMultiplier
-            : 10,
-        ),
-        fill: priorityColors["Urgent"],
-      },
-    ],
-    [selectedPriority, teamMultiplier],
-  );
-
-  const totalTasks = useMemo(
-    () => statusData.reduce((sum, item) => sum + item.value, 0),
-    [statusData],
-  );
+  const totalStatus =
+    chartData.statusDistribution?.reduce(
+      (sum: number, s: any) => sum + s.value,
+      0,
+    ) || 1;
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -208,7 +116,7 @@ function OverviewCharts({
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Task Completion Trend</CardTitle>
-            <Badge variant="outline">Last 9 days</Badge>
+            <Badge variant="outline">Last 10 days</Badge>
           </div>
           <p className="text-sm text-muted-foreground">
             Tasks created vs completed over time
@@ -217,7 +125,7 @@ function OverviewCharts({
         <CardContent>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData}>
+              <LineChart data={chartData.trendData || []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
@@ -230,7 +138,6 @@ function OverviewCharts({
                   strokeWidth={3}
                   name="Created"
                   dot={{ r: 4 }}
-                  isAnimationActive={false}
                 />
                 <Line
                   type="natural"
@@ -239,7 +146,6 @@ function OverviewCharts({
                   strokeWidth={3}
                   name="Completed"
                   dot={{ r: 4 }}
-                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -261,29 +167,31 @@ function OverviewCharts({
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={statusData}
+                    data={chartData.statusDistribution || []}
                     cx="50%"
                     cy="50%"
                     innerRadius={70}
                     outerRadius={110}
                     dataKey="value"
-                    isAnimationActive={false}
                   >
-                    {statusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
+                    {(chartData.statusDistribution || []).map(
+                      (entry: any, index: number) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={STATUS_COLORS[entry.name] || "#94a3b8"}
+                        />
+                      ),
+                    )}
                   </Pie>
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-
             <div className="flex-1 space-y-4">
-              {statusData.map((item) => {
-                const percentage =
-                  totalTasks > 0
-                    ? ((item.value / totalTasks) * 100).toFixed(1)
-                    : "0";
+              {(chartData.statusDistribution || []).map((item: any) => {
+                const percentage = ((item.value / totalStatus) * 100).toFixed(
+                  1,
+                );
                 return (
                   <div
                     key={item.name}
@@ -292,7 +200,10 @@ function OverviewCharts({
                     <div className="flex items-center gap-3">
                       <div
                         className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: item.color }}
+                        style={{
+                          backgroundColor:
+                            STATUS_COLORS[item.name] || "#94a3b8",
+                        }}
                       />
                       <span className="font-medium">{item.name}</span>
                     </div>
@@ -322,17 +233,22 @@ function OverviewCharts({
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={priorityData}
+                data={chartData.priorityBreakdown || []}
                 layout="vertical"
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" />
                 <YAxis dataKey="name" type="category" width={70} />
                 <Tooltip />
-                <Bar dataKey="tasks" radius={6} isAnimationActive={false}>
-                  {priorityData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
+                <Bar dataKey="tasks" radius={6}>
+                  {(chartData.priorityBreakdown || []).map(
+                    (entry: any, index: number) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={PRIORITY_COLORS[entry.name] || "#94a3b8"}
+                      />
+                    ),
+                  )}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -341,7 +257,6 @@ function OverviewCharts({
       </Card>
     </div>
   );
-}
+};
 
-// Export as memoized component to prevent unnecessary re-renders
 export default React.memo(OverviewCharts);

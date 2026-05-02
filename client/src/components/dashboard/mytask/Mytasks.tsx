@@ -66,6 +66,7 @@ const StatusColors: Record<string, string> = {
   Done: "text-green-600 border border-green-600",
   Cancelled: "text-red-600 border border-red-600",
   "On Hold": "text-slate-500 border border-slate",
+  Review: "text-slate-500 border border-slate",
 };
 
 const statusMap: Record<string, string> = {

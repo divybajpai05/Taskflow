@@ -145,4 +145,31 @@ export class AttendanceController {
       next(error);
     }
   }
+
+
+  async getCalendarMonthly(req: Request, res: Response, next: NextFunction) {
+    try {
+      const workspaceId = req.user!.workspaceId;
+      const userId = req.user!.id;
+      const userPermissions = req.user!.permissions || [];
+      const userTeamId = req.user?.teamId || null;
+      const month =
+        parseInt(req.query.month as string) || new Date().getMonth() + 1;
+      const year =
+        parseInt(req.query.year as string) || new Date().getFullYear();
+
+      const records = await attendanceService.getCalendarMonthly(
+        workspaceId,
+        userId,
+        userPermissions,
+        userTeamId,
+        month,
+        year,
+      );
+
+      res.json({ success: true, data: records });
+    } catch (error: any) {
+      next(error);
+    }
+  }
 }

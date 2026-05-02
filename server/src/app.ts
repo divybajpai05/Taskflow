@@ -14,6 +14,10 @@ import leaveRoutes from "./modules/leaves/leave.routes";
 import taskRoutes from "./modules/tasks/task.routes";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes";
 import kanbanRoutes from "./modules/kanban/kanban.routes";
+import calendarRoutes from "./modules/calendar/calendar.routes";
+import hrCalendarRoutes from "./modules/hr-calendar/hr-calendar.routes";
+import hrDashboardRoutes from "./modules/hr-dashboard/hr-dashboard.routes";
+import analyticsRoutes from "./modules/analytics/analytics.routes";
 
 
 import { db } from "./db/drizzle";
@@ -76,14 +80,10 @@ app.use("/api/leaves", leaveRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/kanban", kanbanRoutes);
-
-
-
-// Add this to your server.ts temporarily
-app.get("/api/teams", authenticate, async (req, res) => {
-  const teamsAll = await db.select().from(teams).where(eq(teams.workspaceId, req.user!.workspaceId));
-  res.json({ success: true, data: teamsAll });
-});
+app.use("/api/calendar", calendarRoutes);
+app.use("/api/hr-calendar", hrCalendarRoutes);
+app.use("/api/hr-dashboard", hrDashboardRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 
 // Health check

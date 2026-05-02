@@ -1,4 +1,5 @@
-import { useState } from "react";
+// components/analytics/Analytics.tsx
+import { useState, useCallback, useEffect } from "react";
 import { format } from "date-fns";
 import { Download, RefreshCw } from "lucide-react";
 
@@ -12,36 +13,65 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import apiClient from "@/api/client";
 
-// Import components
 import KPICards from "./components/KPICards";
 import OverviewCharts from "./components/OverviewCharts";
 import TaskDetailsTable from "./components/TaskDetailsTable";
 import TeamPerformance from "./components/TeamPerformance";
 import InsightsSection from "./components/InsightsSection";
-import { toast } from "sonner";
 
 export default function AnalyticsReport() {
-  // ==================== FILTER STATES ====================
   const [dateRange, setDateRange] = useState({
     from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     to: new Date(),
   });
 
   const [selectedMember, setSelectedMember] = useState<string>("all");
-  const [selectedTeam, setSelectedTeam] = useState<string>("all"); // ← NEW: Team filter
+  const [selectedTeam, setSelectedTeam] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedPriority, setSelectedPriority] = useState<string>("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  // ==================== HANDLERS ====================
+  // ✅ Fetch workspace members for filter
+  const [members, setMembers] = useState<{ id: string; name: string }[]>([]);
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    const fetchFilters = async () => {
+      try {
+        const [membersRes, teamsRes] = await Promise.all([
+          apiClient.get("/users/workspace-members"),
+          apiClient.get("/teams"),
+        ]);
+        if (membersRes.data.success) setMembers(membersRes.data.data || []);
+        if (teamsRes.data.success) setTeams(teamsRes.data.data || []);
+      } catch (error) {
+        console.error("Failed to fetch filters:", error);
+      }
+    };
+    fetchFilters();
+  }, []);
+
   const handleRefresh = () => {
     setIsRefreshing(true);
+    setLastUpdated(new Date());
     setTimeout(() => setIsRefreshing(false), 800);
   };
 
   const handleExport = () => {
-    toast.warning("Export functionality will connect to backend later");
+    toast.info("Export functionality coming soon");
+  };
+
+  const filterProps = {
+    dateRange,
+    selectedMember,
+    selectedTeam,
+    selectedStatus,
+    selectedPriority,
+    refreshKey: lastUpdated.getTime(),
   };
 
   return (
@@ -90,26 +120,26 @@ export default function AnalyticsReport() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Members</SelectItem>
-              <SelectItem value="prashant">Prashant Sharma</SelectItem>
-              <SelectItem value="rahul">Rahul Verma</SelectItem>
-              <SelectItem value="priya">Priya Singh</SelectItem>
-              <SelectItem value="aarav">Aarav Patel</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
-          {/* ==================== NEW: Team Filter ==================== */}
+          {/* Team Filter */}
           <Select value={selectedTeam} onValueChange={setSelectedTeam}>
             <SelectTrigger className="w-[170px]">
               <SelectValue placeholder="All Teams" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Teams</SelectItem>
-              <SelectItem value="engineering">Engineering</SelectItem>
-              <SelectItem value="design">Design</SelectItem>
-              <SelectItem value="marketing">Marketing</SelectItem>
-              <SelectItem value="hr">HR</SelectItem>
-              <SelectItem value="sales">Sales</SelectItem>
-              {/* Add more teams as per your TaskFlow / Kanban setup */}
+              {teams.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -149,13 +179,11 @@ export default function AnalyticsReport() {
           >
             <RefreshCw
               className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-            />
+            />{" "}
             Refresh
           </Button>
-
           <Button onClick={handleExport} className="gap-2">
-            <Download className="h-4 w-4" />
-            Export Report
+            <Download className="h-4 w-4" /> Export Report
           </Button>
         </div>
       </div>
@@ -165,17 +193,11 @@ export default function AnalyticsReport() {
         <Badge variant="secondary" className="bg-green-500/10 text-green-600">
           ● Live
         </Badge>
-        Last updated moments ago
+        Last updated {format(lastUpdated, "HH:mm:ss")}
       </div>
 
-      {/* Pass ALL filters (including new team filter) to every component */}
-      <KPICards
-        dateRange={dateRange}
-        selectedMember={selectedMember}
-        selectedTeam={selectedTeam}
-        selectedStatus={selectedStatus}
-        selectedPriority={selectedPriority}
-      />
+      {/* KPI Cards */}
+      <KPICards {...filterProps} />
 
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
@@ -192,45 +214,17 @@ export default function AnalyticsReport() {
             Insights
           </TabsTrigger>
         </TabsList>
-
         <TabsContent value="overview">
-          <OverviewCharts
-            dateRange={dateRange}
-            selectedMember={selectedMember}
-            selectedTeam={selectedTeam}
-            selectedStatus={selectedStatus}
-            selectedPriority={selectedPriority}
-          />
+          <OverviewCharts {...filterProps} />
         </TabsContent>
-
         <TabsContent value="team">
-          <TeamPerformance
-            dateRange={dateRange}
-            selectedMember={selectedMember}
-            selectedTeam={selectedTeam}
-            selectedStatus={selectedStatus}
-            selectedPriority={selectedPriority}
-          />
+          <TeamPerformance {...filterProps} />
         </TabsContent>
-
         <TabsContent value="tasks">
-          <TaskDetailsTable
-            dateRange={dateRange}
-            selectedMember={selectedMember}
-            selectedTeam={selectedTeam}
-            selectedStatus={selectedStatus}
-            selectedPriority={selectedPriority}
-          />
+          <TaskDetailsTable {...filterProps} />
         </TabsContent>
-
         <TabsContent value="insights">
-          <InsightsSection
-            dateRange={dateRange}
-            selectedMember={selectedMember}
-            selectedTeam={selectedTeam}
-            selectedStatus={selectedStatus}
-            selectedPriority={selectedPriority}
-          />
+          <InsightsSection {...filterProps} />
         </TabsContent>
       </Tabs>
     </div>

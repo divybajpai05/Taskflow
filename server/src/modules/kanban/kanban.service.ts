@@ -128,8 +128,9 @@ export class KanbanService {
     const statusMap: Record<string, string> = {
       Todo: "TODO",
       "In progress": "IN_PROGRESS",
-      "On Hold": "REVIEW",
+      "On Hold": "ON_HOLD",
       Done: "DONE",
+      Review:"REVIEW",
       Cancelled: "CANCELLED",
     };
 
@@ -185,11 +186,11 @@ export class KanbanService {
     const statusMap: Record<string, string> = {
       TODO: "Todo",
       IN_PROGRESS: "In progress",
-      REVIEW: "On Hold",
+      REVIEW: "Review",
       DONE: "Done",
       CANCELLED: "Cancelled",
       ON_HOLD: "On Hold",
     };
-    return statusMap[status] || status;
+    return statusMap[status] || status.replace("_", " ");
   }
 }

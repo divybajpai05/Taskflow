@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+// components/hr/components/EmployeeLists.tsx
+import React, { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -10,124 +11,61 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Loader2 } from "lucide-react";
+import apiClient from "@/api/client";
 
 interface EmployeeListsProps {
   selectedDepartment: string;
-  // selectedStatus: string;
+  refreshKey?: number;
+}
+
+interface Employee {
+  id: string;
+  name: string;
+  email: string;
+  department: string;
+  role: string;
+  status: string;
+  initials: string;
+}
+
+interface EmployeeData {
+  present: Employee[];
+  absent: Employee[];
+  onLeave: Employee[];
+  halfDay: Employee[];
 }
 
 const EmployeeLists: React.FC<EmployeeListsProps> = ({
   selectedDepartment,
+  refreshKey,
 }) => {
-  const deptFilter = selectedDepartment === "all" ? null : selectedDepartment;
+  const [employeeData, setEmployeeData] = useState<EmployeeData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock Data
-  const allEmployees = [
-    {
-      id: 1,
-      name: "Ananya Sharma",
-      dept: "Engineering",
-      role: "Senior Developer",
-      status: "present",
-      email: "ananya@taskflow.com",
-    },
-    {
-      id: 2,
-      name: "Rohan Mehta",
-      dept: "Design",
-      role: "UI/UX Designer",
-      status: "present",
-      email: "rohan@taskflow.com",
-    },
-    {
-      id: 3,
-      name: "Priya Kapoor",
-      dept: "Marketing",
-      role: "Content Strategist",
-      status: "onleave",
-      email: "priya@taskflow.com",
-    },
-    {
-      id: 4,
-      name: "Arjun Rao",
-      dept: "Sales",
-      role: "Account Manager",
-      status: "present",
-      email: "arjun@taskflow.com",
-    },
-    {
-      id: 5,
-      name: "Sneha Verma",
-      dept: "HR",
-      role: "Talent Acquisition",
-      status: "present",
-      email: "sneha@taskflow.com",
-    },
-    {
-      id: 6,
-      name: "Vikram Singh",
-      dept: "Engineering",
-      role: "Backend Engineer",
-      status: "absent",
-      email: "vikram@taskflow.com",
-    },
-    {
-      id: 7,
-      name: "Meera Joshi",
-      dept: "Finance",
-      role: "Accountant",
-      status: "onleave",
-      email: "meera@taskflow.com",
-    },
-    {
-      id: 8,
-      name: "Karan Patel",
-      dept: "Marketing",
-      role: "Digital Marketer",
-      status: "present",
-      email: "karan@taskflow.com",
-    },
-    {
-      id: 8,
-      name: "Karan Patel",
-      dept: "finance",
-      role: "Digital Marketer",
-      status: "halfDay",
-      email: "karan@taskflow.com",
-    },
-    {
-      id: 8,
-      name: "Karan Patel",
-      dept: "Marketing",
-      role: "Digital Marketer",
-      status: "halfDay",
-      email: "karan@taskflow.com",
-    },
-  ];
+  const fetchEmployees = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams();
+      if (selectedDepartment !== "all")
+        params.append("department", selectedDepartment);
 
-  const filteredEmployees = useMemo(() => {
-    let data = [...allEmployees];
-
-    if (deptFilter) {
-      data = data.filter((emp) => emp.dept.toLowerCase() === deptFilter);
+      const response = await apiClient.get(
+        `/hr-dashboard/employees?${params.toString()}`,
+      );
+      if (response.data.success) {
+        setEmployeeData(response.data.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch employee data:", error);
+    } finally {
+      setIsLoading(false);
     }
+  }, [selectedDepartment]);
 
-    return data;
-  }, [deptFilter]);
-
-  const presentEmployees = filteredEmployees.filter(
-    (e) => e.status === "present",
-  );
-  const absentEmployees = filteredEmployees.filter(
-    (e) => e.status === "absent",
-  );
-  const onLeaveEmployees = filteredEmployees.filter(
-    (e) => e.status === "onleave",
-  );
-
-  const halfDayEmployees = filteredEmployees.filter(
-    (e) => e.status === "halfDay",
-  );
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees, refreshKey]);
 
   const EmployeeTable = ({
     title,
@@ -135,7 +73,7 @@ const EmployeeLists: React.FC<EmployeeListsProps> = ({
     badgeColor,
   }: {
     title: string;
-    employees: typeof allEmployees;
+    employees: Employee[];
     badgeColor: string;
   }) => (
     <Card>
@@ -169,23 +107,25 @@ const EmployeeLists: React.FC<EmployeeListsProps> = ({
                   <TableRow key={emp.id}>
                     <TableCell className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
-                        <AvatarFallback>
-                          {emp.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
+                        <AvatarFallback>{emp.initials}</AvatarFallback>
                       </Avatar>
                       <span className="font-medium">{emp.name}</span>
                     </TableCell>
-                    <TableCell>{emp.dept}</TableCell>
+                    <TableCell>{emp.department}</TableCell>
                     <TableCell>{emp.role}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {emp.email}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={`capitalize ${badgeColor}`}>
-                        {emp.status}
+                      <Badge
+                        variant="outline"
+                        className={`capitalize ${badgeColor}`}
+                      >
+                        {emp.status === "onleave"
+                          ? "On Leave"
+                          : emp.status === "halfDay"
+                            ? "Half Day"
+                            : emp.status}
                       </Badge>
                     </TableCell>
                   </TableRow>
@@ -198,29 +138,34 @@ const EmployeeLists: React.FC<EmployeeListsProps> = ({
     </Card>
   );
 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-1">
       <EmployeeTable
         title="Present Employees"
-        employees={presentEmployees}
+        employees={employeeData?.present || []}
         badgeColor="bg-green-100 text-green-700"
       />
-
       <EmployeeTable
         title="Absent Employees"
-        employees={absentEmployees}
+        employees={employeeData?.absent || []}
         badgeColor="bg-red-100 text-red-700"
       />
-
       <EmployeeTable
         title="On Leave Employees"
-        employees={onLeaveEmployees}
+        employees={employeeData?.onLeave || []}
         badgeColor="bg-orange-100 text-orange-700"
       />
-
       <EmployeeTable
         title="Half Day Employees"
-        employees={halfDayEmployees}
+        employees={employeeData?.halfDay || []}
         badgeColor="bg-yellow-100 text-yellow-700"
       />
     </div>

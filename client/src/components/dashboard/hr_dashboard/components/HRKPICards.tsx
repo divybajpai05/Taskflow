@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+// components/hr/components/HRKPICards.tsx
+import React, { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Users,
@@ -7,14 +8,17 @@ import {
   CheckCircle,
   XCircle,
   TrendingUp,
+  Loader2,
 } from "lucide-react";
+import { format } from "date-fns";
+import apiClient from "@/api/client";
 
 interface HRKPICardsProps {
   dateRange: { from: Date; to: Date };
   selectedDepartment: string;
+  refreshKey?: number;
 }
 
-// Shape of data coming from backend (only numbers)
 interface HRKPIResponse {
   totalEmployees: number;
   activeEmployees: number;
@@ -27,22 +31,39 @@ interface HRKPIResponse {
 const HRKPICards: React.FC<HRKPICardsProps> = ({
   dateRange,
   selectedDepartment,
+  refreshKey,
 }) => {
-  // Mock data simulating backend response
-  const kpiNumbers: HRKPIResponse = useMemo(() => {
-    const multiplier = selectedDepartment === "all" ? 1 : 0.85;
+  const [kpiData, setKpiData] = useState<HRKPIResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-    return {
-      totalEmployees: Math.floor(1248 * multiplier),
-      activeEmployees: Math.floor(1189 * multiplier),
-      onLeave: Math.floor(42),
-      presentToday: Math.floor(1124 * multiplier),
-      absentToday: Math.floor(67 * multiplier),
-      newHiresThisMonth: Math.floor(28 * multiplier),
-    };
-  }, [selectedDepartment]);
+  const fetchKPI = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams();
+      if (selectedDepartment !== "all")
+        params.append("department", selectedDepartment);
+      if (dateRange.from)
+        params.append("dateFrom", format(dateRange.from, "yyyy-MM-dd"));
+      if (dateRange.to)
+        params.append("dateTo", format(dateRange.to, "yyyy-MM-dd"));
 
-  // Frontend configuration
+      const response = await apiClient.get(
+        `/hr-dashboard/kpi?${params.toString()}`,
+      );
+      if (response.data.success) {
+        setKpiData(response.data.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch KPI data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedDepartment, dateRange]);
+
+  useEffect(() => {
+    fetchKPI();
+  }, [fetchKPI, refreshKey]);
+
   const kpiConfig = [
     {
       key: "totalEmployees" as const,
@@ -85,14 +106,22 @@ const HRKPICards: React.FC<HRKPICardsProps> = ({
     },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       {kpiConfig.map((config) => {
-        const value = kpiNumbers[config.key];
+        const value = kpiData?.[config.key] || 0;
         const subtitle =
           config.subtitle ||
-          (config.key === "activeEmployees"
-            ? `${((kpiNumbers.activeEmployees / kpiNumbers.totalEmployees) * 100).toFixed(1)}% of workforce`
+          (config.key === "activeEmployees" && kpiData
+            ? `${((kpiData.activeEmployees / kpiData.totalEmployees) * 100).toFixed(1)}% of workforce`
             : "");
 
         return (

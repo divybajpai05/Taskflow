@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+// components/hr/HRDashboard.tsx
+import { useState, useCallback, useEffect } from "react";
 import { format } from "date-fns";
 import { Download, RefreshCw } from "lucide-react";
 
@@ -11,13 +12,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 import HRKPICards from "./components/HRKPICards";
 import HRCharts from "./components/HRCharts";
 import EmployeeLists from "./components/EmployeeLists";
+import apiClient from "@/api/client";
 
 export default function HRDashboard() {
-  // ==================== FILTER STATES ====================
   const [dateRange, setDateRange] = useState({
     from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     to: new Date(),
@@ -25,17 +27,41 @@ export default function HRDashboard() {
 
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  // ==================== HANDLERS ====================
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    // TODO: Call backend refresh API here in future
-    setTimeout(() => setIsRefreshing(false), 800);
+    try {
+      // Trigger re-fetch in child components
+      setLastUpdated(new Date());
+      toast.success("Dashboard refreshed");
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 800);
+    }
   }, []);
 
-  const handleExport = () => {
-    // TODO: Connect to backend export API
-    alert("Export HR Report functionality will be connected to backend soon!");
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (selectedDepartment !== "all")
+        params.append("department", selectedDepartment);
+
+      const response = await apiClient.get(
+        `/hr-dashboard/export?${params.toString()}`,
+        {
+          responseType: "blob",
+        },
+      );
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `hr-report-${format(new Date(), "yyyy-MM-dd")}.csv`;
+      a.click();
+      toast.success("Report exported successfully");
+    } catch (error) {
+      toast.error("Failed to export report");
+    }
   };
 
   return (
@@ -77,7 +103,7 @@ export default function HRDashboard() {
             />
           </div>
 
-          {/* Only Department Filter - Status filter removed */}
+          {/* Department Filter */}
           <Select
             value={selectedDepartment}
             onValueChange={setSelectedDepartment}
@@ -87,12 +113,12 @@ export default function HRDashboard() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Departments</SelectItem>
-              <SelectItem value="engineering">Engineering</SelectItem>
-              <SelectItem value="design">Design</SelectItem>
-              <SelectItem value="marketing">Marketing</SelectItem>
-              <SelectItem value="sales">Sales</SelectItem>
-              <SelectItem value="hr">HR</SelectItem>
-              <SelectItem value="finance">Finance</SelectItem>
+              <SelectItem value="Engineering">Engineering</SelectItem>
+              <SelectItem value="Design">Design</SelectItem>
+              <SelectItem value="Marketing">Marketing</SelectItem>
+              <SelectItem value="Sales">Sales</SelectItem>
+              <SelectItem value="HR">HR</SelectItem>
+              <SelectItem value="Finance">Finance</SelectItem>
             </SelectContent>
           </Select>
 
@@ -119,24 +145,32 @@ export default function HRDashboard() {
         <Badge variant="secondary" className="bg-green-500/10 text-green-600">
           ● Live
         </Badge>
-        Last updated moments ago
+        Last updated {format(lastUpdated, "HH:mm:ss")}
       </div>
 
       {/* KPI Cards */}
       <HRKPICards
         dateRange={dateRange}
         selectedDepartment={selectedDepartment}
+        refreshKey={lastUpdated.getTime()}
       />
 
       {/* Charts */}
-      <HRCharts dateRange={dateRange} selectedDepartment={selectedDepartment} />
+      <HRCharts
+        dateRange={dateRange}
+        selectedDepartment={selectedDepartment}
+        refreshKey={lastUpdated.getTime()}
+      />
 
       {/* Employee Lists */}
       <div className="space-y-6">
         <h2 className="text-2xl font-semibold tracking-tight">
           Employee Lists
         </h2>
-        <EmployeeLists selectedDepartment={selectedDepartment} />
+        <EmployeeLists
+          selectedDepartment={selectedDepartment}
+          refreshKey={lastUpdated.getTime()}
+        />
       </div>
     </div>
   );

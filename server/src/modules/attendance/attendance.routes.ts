@@ -13,5 +13,7 @@ router.get("/stats", attendanceController.getStats);
 router.get("/monthly", attendanceController.getMonthlyStats);
 router.post("/", attendanceController.markAttendance);
 router.post("/bulk", attendanceController.bulkMarkAttendance);
+router.get("/calendar-monthly", attendanceController.getCalendarMonthly);
+
 
 export default router;

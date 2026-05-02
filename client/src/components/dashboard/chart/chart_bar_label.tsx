@@ -26,8 +26,8 @@ import {
 } from "@/components/ui/chart";
 
 const PRIORITY_COLORS: Record<string, string> = {
-  Urgent: "#ef4444",
-  High: "#f97316",
+  Urgent: "#b91c1c",
+  High: "#ef4444",
   Medium: "#eab308",
   Low: "#22c55e",
 };

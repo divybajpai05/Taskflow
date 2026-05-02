@@ -28,14 +28,14 @@ export function LiveActivity() {
   const fetchActivities = useCallback(async () => {
     try {
       setIsLoading(true);
-      const limit = isExpanded ? 20 : 4;
+      const limit = 20;
       const response = await apiClient.get(
         `/dashboard/live-activity?limit=${limit}`,
       );
 
       if (response.data.success) {
         setActivities(response.data.data);
-        console.log(response)
+        console.log(response);
       }
     } catch (error) {
       console.error("Failed to fetch activities:", error);
@@ -116,21 +116,21 @@ export function LiveActivity() {
                     <p className="text-sm leading-none text-neutral-800">
                       {displayUser && (
                         <span className="font-medium">{displayUser}</span>
-                      )}
+                      )}{" "}
                       <span
                         className={
                           displayUser
-                            ? "text-neutral-500 ml-1"
+                            ? "text-blue-600 ml-1 special-font"
                             : "text-neutral-700"
                         }
                       >
                         {displayAction}
                       </span>
-                      {activity.target && activity.target !== "user" && (
+                      {/* {activity.target && activity.target !== "user" && (
                         <span className="text-blue-600 hover:underline cursor-pointer text-xs ml-1">
                           {activity.target}
                         </span>
-                      )}
+                      )} */}
                     </p>
                     <div className="flex flex-row gap-2 text-[11px]">
                       <time className="text-[11px] font-medium uppercase tracking-tight">

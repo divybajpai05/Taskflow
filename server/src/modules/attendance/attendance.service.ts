@@ -1,7 +1,7 @@
 // src/modules/attendance/attendance.service.ts
 import { db } from "../../db/drizzle";
 import { attendance, users, workspaceMembers, roles } from "../../db/schema";
-import { eq, and, gte, lte, count } from "drizzle-orm";
+import { eq, and, gte, lte, count, inArray } from "drizzle-orm";
 
 export class AttendanceService {
   /**
@@ -222,5 +222,36 @@ export class AttendanceService {
       averageAttendance:
         totalRecords > 0 ? Math.round((presentCount / totalRecords) * 100) : 0,
     };
+  }
+
+  /**
+   * Get attendance for calendar view - for any month
+   */
+  async getCalendarMonthly(
+    workspaceId: string,
+    userId: string,
+    userPermissions: string[],
+    userTeamId: string | null,
+    month: number,
+    year: number,
+  ) {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+
+    const conditions: any[] = [
+      eq(attendance.workspaceId, workspaceId),
+      gte(attendance.date, startDate),
+      lte(attendance.date, endDate),
+      // ✅ ALWAYS only show logged-in user's own attendance for background colors
+      // Background colors are PERSONAL - team members' attendance is NOT shown as background
+      eq(attendance.userId, userId),
+    ];
+
+    const records = await db
+      .select({ date: attendance.date, status: attendance.status })
+      .from(attendance)
+      .where(and(...conditions));
+
+    return records;
   }
 }
