@@ -283,7 +283,7 @@ const OverviewCharts: React.FC<OverviewChartsProps> = ({
               </p>
             </div>
             <Badge variant="outline" className="px-3 py-1">
-              Last 10 days
+              Last {chartData.trendData?.length || 10} days
             </Badge>
           </div>
         </CardHeader>
@@ -291,7 +291,10 @@ const OverviewCharts: React.FC<OverviewChartsProps> = ({
           {chartData.trendData && chartData.trendData.length > 0 ? (
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData.trendData}>
+                <AreaChart
+                  data={chartData.trendData}
+                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                >
                   <defs>
                     <linearGradient
                       id="colorCreated"
@@ -315,14 +318,32 @@ const OverviewCharts: React.FC<OverviewChartsProps> = ({
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
-                  <YAxis stroke="#6b7280" fontSize={12} allowDecimals={false} />
+                  <XAxis
+                    dataKey="name"
+                    stroke="#6b7280"
+                    fontSize={12}
+                    tick={{ fill: "#6b7280" }}
+                    axisLine={{ stroke: "#e5e7eb" }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    stroke="#6b7280"
+                    fontSize={12}
+                    allowDecimals={false}
+                    domain={[0, "auto"]}
+                    tickCount={5}
+                    tick={{ fill: "#6b7280" }}
+                    axisLine={{ stroke: "#e5e7eb" }}
+                    tickLine={false}
+                  />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend
-                    verticalAlign="bottom"
+                    verticalAlign="top"
                     height={36}
+                    iconType="circle"
+                    iconSize={8}
                     formatter={(value) => (
-                      <span className="text-gray-700 dark:text-gray-300">
+                      <span className="text-gray-600 dark:text-gray-300 text-sm">
                         {value}
                       </span>
                     )}
@@ -334,8 +355,18 @@ const OverviewCharts: React.FC<OverviewChartsProps> = ({
                     strokeWidth={2}
                     fill="url(#colorCreated)"
                     name="Created"
-                    dot={{ r: 4, fill: "#64748b" }}
-                    activeDot={{ r: 6 }}
+                    dot={{
+                      r: 4,
+                      fill: "#64748b",
+                      strokeWidth: 2,
+                      stroke: "#fff",
+                    }}
+                    activeDot={{
+                      r: 6,
+                      fill: "#64748b",
+                      strokeWidth: 2,
+                      stroke: "#fff",
+                    }}
                   />
                   <Area
                     type="monotone"
@@ -344,15 +375,28 @@ const OverviewCharts: React.FC<OverviewChartsProps> = ({
                     strokeWidth={2}
                     fill="url(#colorCompleted)"
                     name="Completed"
-                    dot={{ r: 4, fill: "#10b981" }}
-                    activeDot={{ r: 6 }}
+                    dot={{
+                      r: 4,
+                      fill: "#10b981",
+                      strokeWidth: 2,
+                      stroke: "#fff",
+                    }}
+                    activeDot={{
+                      r: 6,
+                      fill: "#10b981",
+                      strokeWidth: 2,
+                      stroke: "#fff",
+                    }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
-              No trend data available
+            <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+              <div className="text-4xl mb-3">📈</div>
+              <p className="text-sm">
+                No trend data available for the selected period
+              </p>
             </div>
           )}
         </CardContent>

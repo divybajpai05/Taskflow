@@ -296,10 +296,26 @@ export class AnalyticsService {
     priority?: string,
   ) {
     const now = new Date();
-    const endDate = dateTo ? new Date(dateTo) : now;
+
+    // FIXED: Use local timezone for dates (not UTC ISO strings)
+    const endDate = dateTo ? new Date(dateTo) : new Date();
+    endDate.setHours(23, 59, 59, 999); // Local end of day
+
     const startDate = dateFrom
       ? new Date(dateFrom)
       : new Date(now.getFullYear(), now.getMonth(), 1);
+    startDate.setHours(0, 0, 0, 0); // Local start of day
+
+    console.log("📊 getChartData - Date Range:", {
+      startDate: startDate.toString(),
+      endDate: endDate.toString(),
+      startDateISO: startDate.toISOString(),
+      endDateISO: endDate.toISOString(),
+      memberId,
+      teamId,
+      status,
+      priority,
+    });
 
     const filters = await this.buildFilters(
       workspaceId,
@@ -309,28 +325,30 @@ export class AnalyticsService {
       priority,
     );
 
-    // Task Completion Trend (last 10 days)
+    const allFilters = [
+      ...filters,
+      gte(tasks.createdAt, startDate),
+      lte(tasks.createdAt, endDate),
+    ];
+
+    // Task Completion Trend - dynamic range based on date selection
+    const daysDiff = Math.min(
+      30,
+      Math.ceil(
+        (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000),
+      ),
+    );
+
     const trendData = [];
-    for (let i = 9; i >= 0; i--) {
+    for (let i = daysDiff; i >= 0; i--) {
       const date = new Date(endDate);
       date.setDate(date.getDate() - i);
-      const dayStart = new Date(
-        date.getFullYear(),
-        date.getMonth(),
-        date.getDate(),
-      );
-      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+      const dateStr = date.toISOString().split("T")[0]; // "2026-05-07"
 
       const [createdCount] = await db
         .select({ count: count() })
         .from(tasks)
-        .where(
-          and(
-            ...filters,
-            gte(tasks.createdAt, dayStart),
-            lte(tasks.createdAt, dayEnd),
-          ),
-        );
+        .where(and(...filters, sql`DATE(${tasks.createdAt}) = ${dateStr}`));
 
       const [completedCount] = await db
         .select({ count: count() })
@@ -339,10 +357,13 @@ export class AnalyticsService {
           and(
             ...filters,
             eq(tasks.status, "DONE"),
-            gte(tasks.updatedAt, dayStart),
-            lte(tasks.updatedAt, dayEnd),
+            sql`DATE(${tasks.updatedAt}) = ${dateStr}`,
           ),
         );
+
+      console.log(
+        `📅 ${dateStr} | created: ${createdCount?.count || 0} | completed: ${completedCount?.count || 0}`,
+      );
 
       trendData.push({
         name: date.toLocaleDateString("en-GB", {
@@ -354,12 +375,14 @@ export class AnalyticsService {
       });
     }
 
-    // Status Distribution
+    // Status Distribution - with date filters
     const statusDistribution = await db
       .select({ status: tasks.status, count: count() })
       .from(tasks)
-      .where(and(...filters))
+      .where(and(...allFilters))
       .groupBy(tasks.status);
+
+    console.log("📊 Status Distribution:", statusDistribution);
 
     const statusMap: Record<string, string> = {
       TODO: "Todo",
@@ -370,12 +393,14 @@ export class AnalyticsService {
       ON_HOLD: "On Hold",
     };
 
-    // Priority Breakdown
+    // Priority Breakdown - with date filters
     const priorityBreakdown = await db
       .select({ priority: tasks.priority, count: count() })
       .from(tasks)
-      .where(and(...filters))
+      .where(and(...allFilters))
       .groupBy(tasks.priority);
+
+    console.log("📊 Priority Breakdown Raw:", priorityBreakdown);
 
     const priorityMap: Record<string, string> = {
       LOW: "Low",
@@ -384,17 +409,33 @@ export class AnalyticsService {
       URGENT: "Urgent",
     };
 
-    return {
+    // Fill missing priorities with 0
+    const allPriorities = ["Low", "Medium", "High", "Urgent"];
+    const priorityData = allPriorities.map((p) => {
+      const found = priorityBreakdown.find(
+        (pb) => priorityMap[pb.priority || ""] === p,
+      );
+      return { name: p, tasks: found?.count || 0 };
+    });
+
+    console.log("📊 Priority Breakdown Final:", priorityData);
+
+    const result = {
       trendData,
       statusDistribution: statusDistribution.map((s) => ({
         name: statusMap[s.status || ""] || s.status,
         value: s.count,
       })),
-      priorityBreakdown: priorityBreakdown.map((p) => ({
-        name: priorityMap[p.priority || ""] || p.priority,
-        tasks: p.count,
-      })),
+      priorityBreakdown: priorityData,
     };
+
+    console.log("📊 getChartData Result:", {
+      trendDays: result.trendData.length,
+      statusCount: result.statusDistribution.length,
+      priorityCount: result.priorityBreakdown.length,
+    });
+
+    return result;
   }
 
   /**
