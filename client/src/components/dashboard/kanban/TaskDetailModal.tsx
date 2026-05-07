@@ -28,7 +28,7 @@ export function TaskDetailModal({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl">{task.title}</DialogTitle>
+          <DialogTitle className="text-xl">{task.title}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 py-4">

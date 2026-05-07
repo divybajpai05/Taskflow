@@ -73,7 +73,7 @@ export function TaskStatusChart({ data = [] }: TaskStatusChartProps) {
   }
 
   return (
-    <Card className="w-full flex flex-col">
+    <Card className="w-full flex flex-col justify-between">
       <CardHeader className="items-center pb-2">
         <CardTitle>Task Status</CardTitle>
         <CardDescription>Current distribution of all tasks</CardDescription>

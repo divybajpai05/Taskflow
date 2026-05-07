@@ -8,10 +8,15 @@ import {
   XCircle,
   Search,
   RefreshCw,
-  Download,
   CalendarDays,
   Eye,
   Loader2,
+  Plus,
+  Palette,
+  Banknote,
+  Check,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   Select,
@@ -21,6 +26,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -29,6 +42,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import apiClient from "@/api/client";
 import { toast } from "sonner";
 
@@ -54,12 +70,24 @@ interface LeaveStats {
   rejected: number;
 }
 
+interface LeaveType {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string;
+  isPaid: boolean;
+  defaultDays: number;
+  requiresApproval: boolean;
+  isActive: boolean;
+}
+
 const LeaveManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [typeFilter, setTypeFilter] = useState<string>("All");
   const [departmentFilter, setDepartmentFilter] = useState<string>("All");
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [stats, setStats] = useState<LeaveStats>({
     total: 0,
     pending: 0,
@@ -68,6 +96,45 @@ const LeaveManagement: React.FC = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
+
+  // Dialog state
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSubmittingType, setIsSubmittingType] = useState(false);
+  const [editingType, setEditingType] = useState<LeaveType | null>(null);
+
+  // Form state
+  const [typeName, setTypeName] = useState("");
+  const [typeDescription, setTypeDescription] = useState("");
+  const [typeColor, setTypeColor] = useState("#3b82f6");
+  const [typeIsPaid, setTypeIsPaid] = useState(true);
+  const [typeDefaultDays, setTypeDefaultDays] = useState(0);
+  const [typeRequiresApproval, setTypeRequiresApproval] = useState(true);
+
+  // Predefined colors
+  const colorOptions = [
+    "#3b82f6",
+    "#10b981",
+    "#f59e0b",
+    "#ef4444",
+    "#8b5cf6",
+    "#ec4899",
+    "#06b6d4",
+    "#f97316",
+    "#6366f1",
+    "#14b8a6",
+    "#e11d48",
+    "#ca8a04",
+  ];
+
+  // Fetch leave types
+  const fetchLeaveTypes = useCallback(async () => {
+    try {
+      const response = await apiClient.get("/leave-types");
+      if (response.data.success) setLeaveTypes(response.data.data);
+    } catch (error) {
+      console.error("Failed to fetch leave types:", error);
+    }
+  }, []);
 
   // Fetch leaves
   const fetchLeaves = useCallback(async () => {
@@ -102,7 +169,97 @@ const LeaveManagement: React.FC = () => {
   useEffect(() => {
     fetchLeaves();
     fetchStats();
-  }, [fetchLeaves, fetchStats]);
+    fetchLeaveTypes();
+  }, [fetchLeaves, fetchStats, fetchLeaveTypes]);
+
+  // Reset form
+  const resetForm = () => {
+    setTypeName("");
+    setTypeDescription("");
+    setTypeColor("#3b82f6");
+    setTypeIsPaid(true);
+    setTypeDefaultDays(0);
+    setTypeRequiresApproval(true);
+    setEditingType(null);
+  };
+
+  // Open dialog for create
+  const handleAddNew = () => {
+    resetForm();
+    setIsDialogOpen(true);
+  };
+
+  // Open dialog for edit
+  const handleEdit = (leaveType: LeaveType) => {
+    setEditingType(leaveType);
+    setTypeName(leaveType.name);
+    setTypeDescription(leaveType.description || "");
+    setTypeColor(leaveType.color);
+    setTypeIsPaid(leaveType.isPaid);
+    setTypeDefaultDays(leaveType.defaultDays);
+    setTypeRequiresApproval(leaveType.requiresApproval);
+    setIsDialogOpen(true);
+  };
+
+  // Submit leave type
+  const handleSubmitLeaveType = async () => {
+    if (!typeName.trim()) {
+      toast.error("Leave type name is required");
+      return;
+    }
+
+    setIsSubmittingType(true);
+    try {
+      if (editingType) {
+        // Update
+        await apiClient.put(`/leave-types/${editingType.id}`, {
+          name: typeName.trim(),
+          description: typeDescription.trim() || null,
+          color: typeColor,
+          isPaid: typeIsPaid,
+          defaultDays: typeDefaultDays,
+          requiresApproval: typeRequiresApproval,
+        });
+        toast.success("Leave type updated successfully!");
+      } else {
+        // Create
+        await apiClient.post("/leave-types", {
+          name: typeName.trim(),
+          description: typeDescription.trim() || null,
+          color: typeColor,
+          isPaid: typeIsPaid,
+          defaultDays: typeDefaultDays,
+          requiresApproval: typeRequiresApproval,
+        });
+        toast.success("Leave type created successfully!");
+      }
+      setIsDialogOpen(false);
+      resetForm();
+      fetchLeaveTypes();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to save leave type");
+    } finally {
+      setIsSubmittingType(false);
+    }
+  };
+
+  // Delete leave type
+  const handleDeleteType = async (id: string) => {
+    if (
+      !confirm(
+        "Are you sure you want to delete this leave type? This may affect existing leave requests.",
+      )
+    ) {
+      return;
+    }
+    try {
+      await apiClient.delete(`/leave-types/${id}`);
+      toast.success("Leave type deleted successfully!");
+      fetchLeaveTypes();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to delete leave type");
+    }
+  };
 
   // Approve leave
   const handleApprove = async (id: string) => {
@@ -160,9 +317,12 @@ const LeaveManagement: React.FC = () => {
               Review and manage all leave requests
             </p>
           </div>
-          <Button className="cursor-pointer p-5 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl font-medium flex items-center gap-2 transition-all">
-            <Calendar className="w-5 h-5" />
-            Add Leave Policy
+          <Button
+            onClick={handleAddNew}
+            className="cursor-pointer p-5 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl font-medium flex items-center gap-2 transition-all"
+          >
+            <Plus className="w-5 h-5" />
+            Add Leave Type
           </Button>
         </div>
 
@@ -213,6 +373,89 @@ const LeaveManagement: React.FC = () => {
           })}
         </div>
 
+        {/* Leave Types Section */}
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Leave Types
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {leaveTypes.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-gray-500">
+                No leave types configured yet. Click "Add Leave Type" to create
+                one.
+              </div>
+            ) : (
+              leaveTypes.map((type) => (
+                <div
+                  key={type.id}
+                  className="border rounded-2xl p-4 hover:shadow-md transition-shadow relative group"
+                  style={{
+                    borderLeftColor: type.color,
+                    borderLeftWidth: "4px",
+                  }}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-lg font-bold"
+                        style={{ backgroundColor: type.color }}
+                      >
+                        {type.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">
+                          {type.name}
+                        </h3>
+                        {type.description && (
+                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                            {type.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleEdit(type)}
+                        className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil className="w-4 h-4 text-gray-500" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteType(type.id)}
+                        className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                      {type.isPaid ? "💰 Paid" : "🆓 Unpaid"}
+                    </span>
+                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                      {type.defaultDays > 0
+                        ? `${type.defaultDays} days/yr`
+                        : "No limit"}
+                    </span>
+                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                      {type.requiresApproval
+                        ? "Requires Approval"
+                        : "Auto-approved"}
+                    </span>
+                    {!type.isActive && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700">
+                        Inactive
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         {/* Search + Filters */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-center">
           <div className="flex-1 min-w-75 relative">
@@ -241,9 +484,11 @@ const LeaveManagement: React.FC = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="All">All Leave Types</SelectItem>
-              <SelectItem value="Vacation">Vacation</SelectItem>
-              <SelectItem value="Sick Leave">Sick Leave</SelectItem>
-              <SelectItem value="Casual Leave">Casual Leave</SelectItem>
+              {leaveTypes.map((type) => (
+                <SelectItem key={type.id} value={type.name}>
+                  {type.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button
@@ -404,6 +649,135 @@ const LeaveManagement: React.FC = () => {
             requests
           </p>
         </div>
+
+        {/* Add/Edit Leave Type Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Palette className="w-5 h-5 text-violet-600" />
+                {editingType ? "Edit Leave Type" : "Create Leave Type"}
+              </DialogTitle>
+              <DialogDescription>
+                {editingType
+                  ? "Update the leave type details below."
+                  : "Define a new leave type for your organization."}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-5 py-4">
+              {/* Name */}
+              <div className="space-y-2">
+                <Label htmlFor="typeName">Leave Type Name *</Label>
+                <Input
+                  id="typeName"
+                  placeholder="e.g., Annual Leave, Sick Leave"
+                  value={typeName}
+                  onChange={(e) => setTypeName(e.target.value)}
+                />
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label htmlFor="typeDescription">Description</Label>
+                <Textarea
+                  id="typeDescription"
+                  placeholder="Brief description of this leave type..."
+                  value={typeDescription}
+                  onChange={(e) => setTypeDescription(e.target.value)}
+                  rows={2}
+                />
+              </div>
+
+              {/* Color */}
+              <div className="space-y-2">
+                <Label>Color</Label>
+                <div className="flex flex-wrap gap-2">
+                  {colorOptions.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setTypeColor(color)}
+                      className={`w-8 h-8 rounded-lg transition-all ${
+                        typeColor === color
+                          ? "ring-2 ring-offset-2 ring-gray-400 scale-110"
+                          : "hover:scale-110"
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Default Days */}
+              <div className="space-y-2">
+                <Label htmlFor="defaultDays">Default Days Per Year</Label>
+                <Input
+                  id="defaultDays"
+                  type="number"
+                  min="0"
+                  placeholder="0 = No limit"
+                  value={typeDefaultDays}
+                  onChange={(e) =>
+                    setTypeDefaultDays(parseInt(e.target.value) || 0)
+                  }
+                />
+              </div>
+
+              {/* Switches */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Paid Leave</Label>
+                    <p className="text-xs text-gray-500">
+                      Employee gets paid during this leave
+                    </p>
+                  </div>
+                  <Switch
+                    checked={typeIsPaid}
+                    onCheckedChange={setTypeIsPaid}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Requires Approval</Label>
+                    <p className="text-xs text-gray-500">
+                      Leave requests need manager approval
+                    </p>
+                  </div>
+                  <Switch
+                    checked={typeRequiresApproval}
+                    onCheckedChange={setTypeRequiresApproval}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDialogOpen(false);
+                  resetForm();
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmitLeaveType}
+                disabled={isSubmittingType || !typeName.trim()}
+                className="bg-violet-600 hover:bg-violet-700"
+              >
+                {isSubmittingType ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4 mr-2" />
+                )}
+                {editingType ? "Update" : "Create"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );

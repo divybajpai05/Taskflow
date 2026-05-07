@@ -10,6 +10,8 @@ router.use(authenticate);
 
 router.get("/", leaveController.getLeaves);
 router.get("/stats", leaveController.getStats);
+router.get("/balance", leaveController.getBalance);
+router.get("/my", leaveController.getMyLeaves);
 router.post("/", leaveController.createLeave);
 router.put("/:id", leaveController.updateStatus);
 router.delete("/:id", leaveController.deleteLeave);

@@ -3,13 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import {
-  CalendarIcon,
-  ChevronsUpDown,
-  Loader2,
-  Check,
-  Lock,
-} from "lucide-react";
+import { CalendarIcon, ChevronsUpDown, Loader2, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -93,7 +87,6 @@ export function AddTaskModal({
   >([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // ✅ Track if pre-fill has been done to avoid infinite loop
   const [hasPreFilled, setHasPreFilled] = useState(false);
 
   const {
@@ -124,19 +117,33 @@ export function AddTaskModal({
   const isEditing = !!editingTask && open;
 
   // ==================== PERMISSION CHECKS ====================
-  const canManageAll =
-    user?.permissions?.includes("team_management") ||
-    user?.permissions?.includes("user_management");
+  const isAdmin = user?.permissions?.includes("user_management") || false;
+  const isTeamManager = user?.permissions?.includes("team_management") || false;
+  const isEmployee = !isAdmin && !isTeamManager;
 
-  const availableTeams = canManageAll
+  // Get user's team ID
+  const userTeamId = user?.teamId || "";
+
+  // Available teams based on permission
+  const availableTeams = isAdmin
     ? teams
-    : teams.filter((t) => t.id === user?.teamId);
+    : userTeamId
+      ? teams.filter((t) => t.id === userTeamId)
+      : [];
 
-  const filteredMembers = canManageAll
+  // Filtered members based on permission
+  const filteredMembers = isAdmin
     ? workspaceMembers.filter((m) =>
         teamValue ? m.teamId === teamValue : true,
       )
-    : workspaceMembers.filter((m) => m.id === user?.id);
+    : isTeamManager
+      ? workspaceMembers.filter((m) => m.teamId === userTeamId)
+      : workspaceMembers.filter((m) => m.id === user?.id);
+
+  // Disabled states
+  const isTeamDisabled = isSubmitting || (isEditing && !isAdmin);
+  const isMembersDisabled =
+    isSubmitting || (isEditing && !isAdmin && !isTeamManager);
 
   // ==================== FETCH WORKSPACE MEMBERS ====================
   const fetchWorkspaceMembers = useCallback(async () => {
@@ -151,7 +158,6 @@ export function AddTaskModal({
           team: u.team,
           teamId: u.teamId,
         }));
-        console.log("🔵 Fetched workspace members:", members);
         setWorkspaceMembers(members);
       }
     } catch (error) {
@@ -164,12 +170,11 @@ export function AddTaskModal({
   useEffect(() => {
     if (open) {
       fetchWorkspaceMembers();
-      setHasPreFilled(false); // ✅ Reset pre-fill flag when opening
+      setHasPreFilled(false);
     }
   }, [open, fetchWorkspaceMembers]);
 
-  // ==================== PRE-FILL LOGIC (only runs once) ====================
-
+  // ==================== PRE-FILL LOGIC ====================
   const preFillAttempted = useRef(false);
 
   useEffect(() => {
@@ -177,53 +182,34 @@ export function AddTaskModal({
       preFillAttempted.current = false;
       return;
     }
-
     if (hasPreFilled) return;
 
-    // ✅ Wait for workspaceMembers to load before pre-filling
     if (
       editingTask &&
       workspaceMembers.length === 0 &&
       !preFillAttempted.current
     ) {
-      // Members not loaded yet - fetch them first
       preFillAttempted.current = true;
       fetchWorkspaceMembers();
       return;
     }
 
     if (editingTask) {
-      console.log("🔵 Pre-filling edit task:", editingTask);
-      console.log("🔵 Workspace members:", workspaceMembers);
-
-      // ✅ Map assignee names to IDs
       let memberIds: string[] = [];
       const rawMembers =
         editingTask.selectMember || editingTask.assignees || [];
-      console.log("🔵 Raw members:", rawMembers);
 
       if (rawMembers.length > 0 && workspaceMembers.length > 0) {
         memberIds = rawMembers
           .map((item: string) => {
-            // Try matching by ID first
             const byId = workspaceMembers.find((m) => m.id === item);
-            if (byId) {
-              console.log("✅ Found by ID:", item, "->", byId.name);
-              return byId.id;
-            }
-            // Try matching by name
+            if (byId) return byId.id;
             const byName = workspaceMembers.find((m) => m.name === item);
-            if (byName) {
-              console.log("✅ Found by name:", item, "->", byName.id);
-              return byName.id;
-            }
-            console.log("❌ Not found:", item);
+            if (byName) return byName.id;
             return null;
           })
           .filter(Boolean) as string[];
       }
-
-      console.log("🔵 Final memberIds:", memberIds);
 
       reset({
         title: editingTask.title || "",
@@ -244,9 +230,13 @@ export function AddTaskModal({
         }
       }
     } else {
-      if (!canManageAll) {
-        const userTeamId =
-          user?.teamId || teams.find((t) => t.name === user?.team)?.id || "";
+      // New task
+      if (!isAdmin) {
+          console.log("🔵 Pre-filling for non-admin:", {
+            userTeamId,
+            userId: user?.id,
+          });
+
         reset({
           title: "",
           description: "",
@@ -276,7 +266,7 @@ export function AddTaskModal({
   const handleOpenChange = (newOpen: boolean) => {
     onOpenChange(newOpen);
     if (!newOpen) {
-      setHasPreFilled(false); // ✅ Reset for next open
+      setHasPreFilled(false);
       reset({
         title: "",
         description: "",
@@ -292,7 +282,7 @@ export function AddTaskModal({
   };
 
   const toggleMember = (memberId: string) => {
-    if (!canManageAll && memberId !== user?.id) return;
+    if (isEmployee && memberId !== user?.id) return;
     const current = [...selectedMembers];
     const index = current.indexOf(memberId);
     if (index > -1) current.splice(index, 1);
@@ -315,7 +305,6 @@ export function AddTaskModal({
     }
   };
 
-  // ==================== SUBMIT ====================
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     let finalDueDate = values.dueDate;
     if (!finalDueDate && !isEditing) {
@@ -331,7 +320,10 @@ export function AddTaskModal({
       dueDate: finalDueDate,
       id: isEditing && editingTask ? editingTask.id : undefined,
       teamId: values.selectTeam,
-      assigneeIds: !isEditing || canManageAll ? values.selectMember : undefined,
+      assigneeIds:
+        !isEditing || isAdmin || isTeamManager
+          ? values.selectMember
+          : undefined,
     };
 
     setIsSubmitting(true);
@@ -357,7 +349,7 @@ export function AddTaskModal({
             {isEditing ? "Edit Task" : "Create New Task"}
           </DialogTitle>
           <DialogDescription>
-            {isEditing && !canManageAll && "🔒 Some fields are locked by admin"}
+            {isEditing && !isAdmin && "🔒 Some fields are locked"}
           </DialogDescription>
         </DialogHeader>
 
@@ -426,42 +418,49 @@ export function AddTaskModal({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            {/* Team Select */}
             <Field>
               <FieldLabel>Select Team</FieldLabel>
               <Select
                 value={teamValue}
                 onValueChange={(val) => {
                   setValue("selectTeam", val);
-                  if (!isEditing || canManageAll) setValue("selectMember", []);
+                  if (!isEditing || isAdmin) setValue("selectMember", []);
                 }}
-                disabled={isSubmitting || (isEditing && !canManageAll)}
+                disabled={isTeamDisabled}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Team" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableTeams.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
+                  {availableTeams.length > 0 ? (
+                    availableTeams.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="text-xs text-slate-500 px-2 py-3 text-center">
+                      No team assigned
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
-              {isEditing && !canManageAll && (
+              {isEditing && !isAdmin && (
                 <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                   <Lock className="h-3 w-3" /> Team locked
                 </p>
               )}
-              {!canManageAll && !isEditing && (
+              {isEmployee && !isEditing && teamValue && (
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Auto-assigned based on your profile
+                  Auto-assigned
                 </p>
               )}
               {errors.selectTeam && (
                 <FieldError>{errors.selectTeam.message}</FieldError>
               )}
             </Field>
-
+            {/* Members Select */}
             <Field>
               <FieldLabel>Select Members</FieldLabel>
               <Popover>
@@ -469,7 +468,7 @@ export function AddTaskModal({
                   <Button
                     variant="outline"
                     className="w-full justify-between font-normal"
-                    disabled={isSubmitting || (isEditing && !canManageAll)}
+                    disabled={isMembersDisabled}
                   >
                     <span className="truncate">
                       {selectedMembers.length > 0
@@ -484,10 +483,6 @@ export function AddTaskModal({
                     <div className="flex justify-center py-4">
                       <Loader2 className="h-4 w-4 animate-spin" />
                     </div>
-                  ) : !teamValue ? (
-                    <p className="text-xs text-center text-slate-500 py-4">
-                      Select a team first
-                    </p>
                   ) : filteredMembers.length > 0 ? (
                     <div className="space-y-1 max-h-48 overflow-y-auto">
                       {filteredMembers.map((member) => (
@@ -499,7 +494,7 @@ export function AddTaskModal({
                             id={member.id}
                             checked={selectedMembers.includes(member.id)}
                             onCheckedChange={() => toggleMember(member.id)}
-                            disabled={!canManageAll && member.id !== user?.id}
+                            disabled={isEmployee && member.id !== user?.id}
                           />
                           <label
                             htmlFor={member.id}
@@ -525,17 +520,17 @@ export function AddTaskModal({
                     </div>
                   ) : (
                     <p className="text-xs text-center text-slate-500 py-4">
-                      No members in this team
+                      No members available
                     </p>
                   )}
                 </PopoverContent>
               </Popover>
-              {isEditing && !canManageAll && (
+              {isEditing && isEmployee && (
                 <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                   <Lock className="h-3 w-3" /> Members locked
                 </p>
               )}
-              {!canManageAll && !isEditing && (
+              {isEmployee && !isEditing && (
                 <p className="text-[10px] text-muted-foreground mt-1">
                   Self-assigned
                 </p>
@@ -602,10 +597,10 @@ export function AddTaskModal({
             disabled={isSubmitting}
           >
             {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />{" "}
                 {isEditing ? "Updating..." : "Creating..."}
-              </span>
+              </>
             ) : isEditing ? (
               "Update Task"
             ) : (

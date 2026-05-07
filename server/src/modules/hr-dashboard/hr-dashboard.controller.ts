@@ -43,14 +43,21 @@ export class HRDashboardController {
     }
   }
 
+
   async getEmployees(req: Request, res: Response, next: NextFunction) {
     try {
       const workspaceId = req.user!.workspaceId;
       const department = req.query.department as string;
+      const memberId = req.query.memberId as string;
+      const dateFrom = req.query.dateFrom as string;
+      const dateTo = req.query.dateTo as string;
 
       const data = await hrDashboardService.getEmployeeLists(
         workspaceId,
         department,
+        memberId,
+        dateFrom,
+        dateTo,
       );
       res.json({ success: true, data });
     } catch (error: any) {

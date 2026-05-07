@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import apiClient from "@/api/client";
+import { UserDetailDialog } from "./UserDetailDialog";
 
 // ==================== PERMISSIONS ====================
 const ALL_PERMISSIONS = [
@@ -144,6 +145,8 @@ export const UserManagement: React.FC = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [deletingUser, setDeletingUser] = useState<UserData | null>(null);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -155,6 +158,12 @@ export const UserManagement: React.FC = () => {
 
   // ✅ Permissions given to the user (for create & edit)
   const [givenPermissions, setGivenPermissions] = useState<Permission[]>([]);
+
+  // ===== See user detial =========
+  const handleUserClick = (user: any) => {
+    setSelectedUser(user);
+    setIsDetailOpen(true);
+  };
 
   // ==================== FETCH DATA ====================
   const fetchUsers = useCallback(async () => {
@@ -534,7 +543,11 @@ export const UserManagement: React.FC = () => {
                     </TableRow>
                   ) : (
                     filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
+                      <TableRow
+                        key={user.id}
+                        className="hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={() => handleUserClick(user)}
+                      >
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold">
@@ -1007,6 +1020,15 @@ export const UserManagement: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <UserDetailDialog
+        open={isDetailOpen}
+        onClose={() => {
+          setIsDetailOpen(false);
+          setSelectedUser(null);
+        }}
+        user={selectedUser}
+      />
     </div>
   );
 };

@@ -32,6 +32,7 @@ const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 
+
 // Dashboard Layout
 const DashboardLayout = lazy(
   () => import("./components/dashboard/DashboardLayout"),
@@ -73,6 +74,10 @@ const EmailCenter = lazy(
 );
 const Teams = lazy(() => import("./components/dashboard/teams/Teams"));
 
+const LeavePage = lazy(
+  () => import("./components/dashboard/leave_management/LeavePage"),
+);
+
 // Admin Section
 const UserManagementPage = lazy(
   () => import("./components/dashboard/user_management/User_Management"),
@@ -81,10 +86,11 @@ const WorkspaceSpacesPage = lazy(
   () => import("./components/dashboard/workspaces/Workspaces"),
 );
 
-// General Section
 const ActivityLogsPage = lazy(
   () => import("./components/dashboard/activity_logs/ActivityLogsPage"),
 );
+
+
 
 // Settings & 404
 const Settings = lazy(() => import("./components/dashboard/setting/Settings"));
@@ -359,6 +365,15 @@ export default function App() {
             element={
               <Suspense fallback={<Loading />}>
                 <NotFound />
+              </Suspense>
+            }
+          />
+
+          <Route
+            path="leaves"
+            element={
+              <Suspense fallback={<Loading />}>
+                <LeavePage />
               </Suspense>
             }
           />

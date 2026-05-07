@@ -83,14 +83,14 @@ export function PriorityBreakdownChart({
   }
 
   return (
-    <Card className="w-full">
+    <Card className="w-full flex flex-col justify-between">
       <CardHeader>
         <CardTitle>Priority Breakdown</CardTitle>
         <CardDescription>
           Distribution of tasks by priority level
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="">
         <ChartContainer config={chartConfig} className="h-[320px] w-full">
           <BarChart
             accessibilityLayer

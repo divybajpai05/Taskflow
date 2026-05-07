@@ -85,4 +85,95 @@ export class AnalyticsController {
       next(error);
     }
   }
+
+  // Add these methods to AnalyticsController:
+
+  async getTeamWorkload(req: Request, res: Response, next: NextFunction) {
+    try {
+      const workspaceId = req.user!.workspaceId;
+      const { dateFrom, dateTo } = req.query;
+      const data = await analyticsService.getTeamWorkload(
+        workspaceId,
+        dateFrom as string,
+        dateTo as string,
+      );
+      res.json({ success: true, data });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
+  async getTeamCompletionRate(req: Request, res: Response, next: NextFunction) {
+    try {
+      const workspaceId = req.user!.workspaceId;
+      const { dateFrom, dateTo } = req.query;
+      const data = await analyticsService.getTeamCompletionRate(
+        workspaceId,
+        dateFrom as string,
+        dateTo as string,
+      );
+      res.json({ success: true, data });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
+  async getPriorityTrends(req: Request, res: Response, next: NextFunction) {
+    try {
+      const workspaceId = req.user!.workspaceId;
+      const { dateFrom, dateTo } = req.query;
+      const data = await analyticsService.getPriorityTrends(
+        workspaceId,
+        dateFrom as string,
+        dateTo as string,
+      );
+      res.json({ success: true, data });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
+  async getAttendanceTrend(req: Request, res: Response, next: NextFunction) {
+    try {
+      const workspaceId = req.user!.workspaceId;
+      const { dateFrom, dateTo } = req.query;
+      const data = await analyticsService.getAttendanceTrend(
+        workspaceId,
+        dateFrom as string,
+        dateTo as string,
+      );
+      res.json({ success: true, data });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
+  async getEmployeeDistribution(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const workspaceId = req.user!.workspaceId;
+      const data = await analyticsService.getEmployeeDistribution(workspaceId);
+      res.json({ success: true, data });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
+  async getLeaveTrends(req: Request, res: Response, next: NextFunction) {
+    try {
+      const workspaceId = req.user!.workspaceId;
+      const { dateFrom, dateTo } = req.query;
+      const data = await analyticsService.getLeaveTrends(
+        workspaceId,
+        dateFrom as string,
+        dateTo as string,
+      );
+      res.json({ success: true, data });
+    } catch (error: any) {
+      next(error);
+    }
+  }
 }

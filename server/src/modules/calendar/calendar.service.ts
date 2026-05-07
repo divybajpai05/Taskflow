@@ -1,6 +1,15 @@
 // src/modules/calendar/calendar.service.ts
 import { db } from "../../db/drizzle";
-import { tasks, users, teams, taskAssignees, leaves, attendance, workspaceMembers } from "../../db/schema";
+import {
+  tasks,
+  users,
+  teams,
+  taskAssignees,
+  leaves,
+  attendance,
+  workspaceMembers,
+  leaveTypes,
+} from "../../db/schema";
 import { eq, and, or, isNotNull, gte, lte, inArray } from "drizzle-orm";
 import { ActivityService } from "../activity/activity.service";
 
@@ -37,7 +46,7 @@ export class CalendarService {
       .where(
         and(
           eq(tasks.workspaceId, workspaceId),
-          isNotNull(tasks.dueDate), // Only tasks with due dates
+          isNotNull(tasks.dueDate),
           ...taskFilter,
         ),
       );
@@ -79,7 +88,7 @@ export class CalendarService {
    */
   async moveTaskDueDate(
     taskId: string,
-    newDueDate: string, // YYYY-MM-DD from FullCalendar
+    newDueDate: string,
     userId: string,
     workspaceId: string,
   ) {
@@ -91,16 +100,13 @@ export class CalendarService {
 
     if (!task) throw new Error("Task not found");
 
-    // Convert YYYY-MM-DD to Date object
     const [year, month, day] = newDueDate.split("-").map(Number);
     const dueDate = new Date(year, month - 1, day);
 
-    // Format for display
     const formattedDate = `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${String(year).slice(2)}`;
 
     await db.update(tasks).set({ dueDate }).where(eq(tasks.id, taskId));
 
-    // Log activity
     await activityService.logActivity({
       userId,
       workspaceId,
@@ -112,8 +118,6 @@ export class CalendarService {
 
     return { success: true, taskId, newDueDate: formattedDate };
   }
-
-  // Add this method to your CalendarService class in calendar.service.ts:
 
   /**
    * Get all calendar events (tasks + leaves + attendance)
@@ -129,10 +133,6 @@ export class CalendarService {
       userPermissions.includes("hr_calendar");
     const canManageTeam = userPermissions.includes("team_management");
 
-    // ✅ Task Calendar rule:
-    // - team_management (same team): Show team members' leave CARDS
-    // - user_management/hr_calendar: NO leave cards (use HR Calendar)
-    // - Employee: NO leave cards
     const canSeeLeaveCards = canManageTeam && !canManageAll;
 
     const now = new Date();
@@ -147,11 +147,10 @@ export class CalendarService {
       userTeamId,
     );
 
-    // ✅ Only fetch leave events for team_management (not admins, not employees)
     let leaveEvents: any[] = [];
 
     if (canSeeLeaveCards && userTeamId) {
-      // ✅ Get team members (excluding the logged-in user)
+      // Get team members (excluding the logged-in user)
       const teamMembers = await db
         .select({ userId: workspaceMembers.userId })
         .from(workspaceMembers)
@@ -163,28 +162,31 @@ export class CalendarService {
         );
       const teamMemberIds = teamMembers
         .map((m) => m.userId)
-        .filter((id) => id !== userId); // ✅ Exclude self
+        .filter((id) => id !== userId);
 
       if (teamMemberIds.length > 0) {
         const leaveConditions: any[] = [
           eq(leaves.workspaceId, workspaceId),
           eq(leaves.status, "APPROVED"),
-          inArray(leaves.userId, teamMemberIds), // ✅ Only team members' leaves
+          inArray(leaves.userId, teamMemberIds),
         ];
 
+        // FIXED: Join with leaveTypes to get leave type name
         const leavesList = await db
           .select({
             id: leaves.id,
             userId: leaves.userId,
             startDate: leaves.startDate,
             endDate: leaves.endDate,
-            type: leaves.type,
+            leaveTypeId: leaves.leaveTypeId, // FIXED: Changed from type
+            leaveTypeName: leaveTypes.name, // FIXED: Get name from join
             status: leaves.status,
             reason: leaves.reason,
             userName: users.name,
           })
           .from(leaves)
           .leftJoin(users, eq(leaves.userId, users.id))
+          .leftJoin(leaveTypes, eq(leaves.leaveTypeId, leaveTypes.id)) // FIXED: Join with leaveTypes
           .where(and(...leaveConditions));
 
         // Convert leaves to calendar events (cards)
@@ -199,9 +201,9 @@ export class CalendarService {
             });
             leaveEvents.push({
               id: `leave-${leave.id}-${dateStr}`,
-              title: `${leave.userName} - ${this.formatLeaveType(leave.type)}`,
+              title: `${leave.userName} - ${leave.leaveTypeName || "Leave"}`, // FIXED: Use name from DB
               type: "leave",
-              leaveType: leave.type,
+              leaveType: leave.leaveTypeName, // FIXED: Use name
               userName: leave.userName,
               dueDate: dateStr,
               initials:
@@ -215,9 +217,8 @@ export class CalendarService {
         });
       }
     }
-    // ✅ For admins, hr_calendar, and employees: leaveEvents stays as empty []
 
-    // ✅ Get attendance ONLY for the logged-in user (NOT team members)
+    // Get attendance ONLY for the logged-in user
     const attendanceRecords = await db
       .select({
         id: attendance.id,
@@ -228,7 +229,7 @@ export class CalendarService {
       .where(
         and(
           eq(attendance.workspaceId, workspaceId),
-          eq(attendance.userId, userId), // ✅ ONLY logged-in user
+          eq(attendance.userId, userId),
           gte(attendance.date, startOfMonth),
           lte(attendance.date, endOfMonth),
         ),
@@ -245,23 +246,14 @@ export class CalendarService {
 
     return {
       tasks,
-      leaves: leaveEvents, // ✅ Empty for admins/employees
-      attendance: attendanceDays, // ✅ Only self attendance
+      leaves: leaveEvents,
+      attendance: attendanceDays,
       canSeeLeaveCards,
     };
   }
 
-  // Add these helper methods if not already present:
-
-  private formatLeaveType(type: string): string {
-    const typeMap: Record<string, string> = {
-      CASUAL: "Casual Leave",
-      SICK: "Sick Leave",
-      EARNED: "Earned Leave",
-      UNPAID: "Unpaid Leave",
-    };
-    return typeMap[type] || type;
-  }
+  // FIXED: Removed formatLeaveType method since we use dynamic names from DB
+  // The leave type name comes directly from leaveTypes table now
 
   private formatAttendanceStatus(status: string): string {
     const statusMap: Record<string, string> = {

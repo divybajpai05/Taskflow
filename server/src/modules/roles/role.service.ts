@@ -15,13 +15,13 @@ import { ActivityService } from "../activity/activity.service";
 export interface CreateRoleInput {
   name: string;
   description?: string;
-  permissions: string[]; // Array of permission IDs
+  permissions: string[];
 }
 
 export interface UpdateRoleInput {
   name?: string;
   description?: string;
-  permissions?: string[]; // Array of permission IDs
+  permissions?: string[];
 }
 
 const activityService = new ActivityService();
@@ -33,7 +33,6 @@ export class RoleService {
   async getAllRoles() {
     const roleList = await db.select().from(roles);
 
-    // Get permissions for each role
     const rolesWithPermissions = await Promise.all(
       roleList.map(async (role) => {
         const perms = await db
@@ -105,20 +104,17 @@ export class RoleService {
   ) {
     const { name, description, permissions: permissionIds } = input;
 
-    // Check if role name already exists
-    const existingRole = await db
+    const [existingRole] = await db
       .select()
       .from(roles)
       .where(eq(roles.name, name))
       .limit(1);
 
-    if (existingRole.length > 0) {
+    if (existingRole) {
       throw new Error("A role with this name already exists");
     }
 
-    // Validate all permission IDs exist
     if (permissionIds.length > 0) {
-      // ✅ Use inArray to check if all permission IDs exist
       const existingPerms = await db
         .select()
         .from(permissions)
@@ -131,15 +127,13 @@ export class RoleService {
 
     const roleId = uuidv4();
 
-    // Create role
     await db.insert(roles).values({
       id: roleId,
       name,
       description: description || `${name} role`,
-      isSystem: false, // ✅ Custom roles are not system roles
+      isSystem: false,
     });
 
-    // Assign permissions
     if (permissionIds.length > 0) {
       await db.insert(rolePermissions).values(
         permissionIds.map((permId) => ({
@@ -172,7 +166,6 @@ export class RoleService {
   ) {
     const { name, description, permissions: permissionIds } = input;
 
-    // Check if role exists
     const [existingRole] = await db
       .select()
       .from(roles)
@@ -183,39 +176,29 @@ export class RoleService {
       throw new Error("Role not found");
     }
 
-    // Prevent modifying system roles (optional - you can remove this if you want to allow editing system roles)
-    // if (existingRole.isSystem) {
-    //   throw new Error("Cannot modify system roles");
-    // }
-
-    // Check name uniqueness if changed
     if (name && name !== existingRole.name) {
-      const nameTaken = await db
+      const [nameTaken] = await db
         .select()
         .from(roles)
         .where(eq(roles.name, name))
         .limit(1);
 
-      if (nameTaken.length > 0) {
+      if (nameTaken) {
         throw new Error("A role with this name already exists");
       }
     }
 
-    // Update role details
     const updateData: any = {};
     if (name) updateData.name = name;
     if (description !== undefined) updateData.description = description;
 
     await db.update(roles).set(updateData).where(eq(roles.id, roleId));
 
-    // Update permissions if provided
     if (permissionIds !== undefined) {
-      // Remove existing permissions
       await db
         .delete(rolePermissions)
         .where(eq(rolePermissions.roleId, roleId));
 
-      // Add new permissions
       if (permissionIds.length > 0) {
         await db.insert(rolePermissions).values(
           permissionIds.map((permId) => ({
@@ -226,14 +209,14 @@ export class RoleService {
       }
     }
 
-   await activityService.logActivity({
-     userId: userId,
-     workspaceId: workspaceId,
-     action: `updated role "${name || existingRole.name}"`,
-     entityType: "role",
-     entityId: roleId,
-     details: { roleName: name || existingRole.name },
-   });
+    await activityService.logActivity({
+      userId: userId,
+      workspaceId: workspaceId,
+      action: `updated role "${name || existingRole.name}"`,
+      entityType: "role",
+      entityId: roleId,
+      details: { roleName: name || existingRole.name },
+    });
 
     return this.getRoleById(roleId);
   }
@@ -259,32 +242,24 @@ export class RoleService {
 
     if (!fallbackRole) throw new Error("Fallback role not found");
 
-    // Reassign users
+    // FIXED: Reassign users in workspace_members (role is no longer in users table)
     await db
       .update(workspaceMembers)
       .set({ roleId: fallbackRole.id })
       .where(eq(workspaceMembers.roleId, roleId));
-    await db
-      .update(users)
-      .set({ roleId: fallbackRole.id })
-      .where(eq(users.roleId, roleId));
 
     // Delete related records
     await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
-    await db
-      .delete(userPermissions)
-      .where(eq(userPermissions.permissionId, roleId)); // ✅ ADD THIS
     await db.delete(roles).where(eq(roles.id, roleId));
 
-    // Log activity
-   await activityService.logActivity({
-     userId,
-     workspaceId,
-     action: `deleted role "${role.name}"`,
-     entityType: "role",
-     entityId: roleId,
-     details: { roleName: role.name },
-   });
+    await activityService.logActivity({
+      userId,
+      workspaceId,
+      action: `deleted role "${role.name}"`,
+      entityType: "role",
+      entityId: roleId,
+      details: { roleName: role.name },
+    });
 
     return { success: true, message: "Role deleted successfully" };
   }

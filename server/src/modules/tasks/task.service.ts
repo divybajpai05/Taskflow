@@ -58,16 +58,21 @@ export class TaskService {
     console.log("🔵 getTasks - Permissions:", userPermissions);
     console.log("🔵 getTasks - TeamId:", userTeamId);
 
-    const canSeeAllTasks =
-      userPermissions.includes("team_management") ||
-      userPermissions.includes("user_management") ||
-      userPermissions.includes("admin");
+    // FIXED: Only user_management/admin can see ALL tasks
+    const canSeeAllTasks = userPermissions.includes("user_management");
+
+    // FIXED: team_management can see their team's tasks + their own tasks
+    const canManageTeam = userPermissions.includes("team_management");
 
     console.log("🔵 getTasks - canSeeAllTasks:", canSeeAllTasks);
+    console.log("🔵 getTasks - canManageTeam:", canManageTeam);
 
     if (!canSeeAllTasks) {
-      console.log("🔵 getTasks - Applying team filter...");
-      if (userTeamId) {
+      // FIXED: For team_management - only see tasks from their own team
+      if (canManageTeam && userTeamId) {
+        conditions.push(eq(tasks.teamId, userTeamId));
+      } else if (userTeamId) {
+        // Regular user - see tasks from their team OR assigned to them
         const assignedTaskIds = await db
           .select({ taskId: taskAssignees.taskId })
           .from(taskAssignees)
@@ -89,6 +94,7 @@ export class TaskService {
           );
         }
       } else {
+        // No team - only see own tasks
         const assignedTaskIds = await db
           .select({ taskId: taskAssignees.taskId })
           .from(taskAssignees)
@@ -217,34 +223,51 @@ export class TaskService {
       dueDate,
     } = input;
 
-    const canManageAll =
-      userPermissions.includes("team_management") ||
-      userPermissions.includes("user_management");
+    // FIXED: Only user_management can manage all
+    const canManageAll = userPermissions.includes("user_management");
+    // FIXED: team_management can only manage their own team
+    const canManageTeam = userPermissions.includes("team_management");
 
     let finalAssigneeIds = assigneeIds;
     let finalTeamId = teamId;
 
+    // Get the user's team from workspace_members
+    const [memberData] = await db
+      .select({ teamId: workspaceMembers.teamId })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.userId, createdById),
+          eq(workspaceMembers.workspaceId, workspaceId),
+        ),
+      )
+      .limit(1);
+
+    const userTeamId = memberData?.teamId || null;
+
     if (!canManageAll) {
-      finalAssigneeIds = [createdById];
-
-      const [memberData] = await db
-        .select({ teamId: workspaceMembers.teamId })
-        .from(workspaceMembers)
-        .where(
-          and(
-            eq(workspaceMembers.userId, createdById),
-            eq(workspaceMembers.workspaceId, workspaceId),
-          ),
-        )
-        .limit(1);
-
-      finalTeamId = memberData?.teamId || teamId;
+      // FIXED: For both regular users and team_management
+      if (canManageTeam && userTeamId) {
+        // Team manager - can only assign to their team
+        finalTeamId = teamId || userTeamId;
+        // Ensure teamId is their own team
+        if (teamId && teamId !== userTeamId) {
+          console.log(
+            "🔴 Team manager tried to create task for other team - forcing their team",
+          );
+          finalTeamId = userTeamId;
+        }
+      } else {
+        // Regular user - force self-assignment and their team
+        finalAssigneeIds = [createdById];
+        finalTeamId = userTeamId || teamId;
+      }
 
       console.log(
-        "🔵 Regular user creating task - workspace team:",
+        "🔵 createTask - finalTeamId:",
         finalTeamId,
-        "forced assignee:",
-        createdById,
+        "finalAssigneeIds:",
+        finalAssigneeIds,
       );
     }
 
@@ -299,7 +322,6 @@ export class TaskService {
       );
     }
 
-    // ✅ Log activity for task creation
     await activityService.logActivity({
       userId: createdById,
       workspaceId: workspaceId,
@@ -368,9 +390,9 @@ export class TaskService {
       .limit(1);
     if (!task) throw new Error("Task not found");
 
-    const canManageAll =
-      userPermissions.includes("team_management") ||
-      userPermissions.includes("user_management");
+    // FIXED: Only user_management can manage all
+    const canManageAll = userPermissions.includes("user_management");
+    const canManageTeam = userPermissions.includes("team_management");
 
     const isCreator = task.createdById === userId;
 
@@ -383,14 +405,42 @@ export class TaskService {
       .limit(1);
     const isAssignee = !!assignee;
 
-    const canEdit = canManageAll || isCreator || isAssignee;
+    const canEdit = canManageAll || canManageTeam || isCreator || isAssignee;
 
     if (!canEdit) {
       throw new Error("You don't have permission to edit this task");
     }
 
+    // FIXED: Get user's team for team_management restriction
+    const [memberData] = await db
+      .select({ teamId: workspaceMembers.teamId })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.userId, userId),
+          eq(workspaceMembers.workspaceId, workspaceId),
+        ),
+      )
+      .limit(1);
+    const userTeamId = memberData?.teamId || null;
+
+    // FIXED: team_management can't change team to other teams
+    if (input.teamId && !canManageAll) {
+      if (canManageTeam && input.teamId !== userTeamId) {
+        console.log("🔴 Team manager tried to change team - keeping original");
+        delete input.teamId;
+      }
+    }
+
+    // FIXED: Non-admin can't reassign to others
     if (input.assigneeIds && !canManageAll) {
-      input.assigneeIds = [userId];
+      if (canManageTeam) {
+        // Team manager can assign to team members
+        // (keep the assigneeIds as-is since they're within their team)
+      } else {
+        // Regular user can only assign to self
+        input.assigneeIds = [userId];
+      }
     }
 
     const statusMap: Record<
@@ -420,7 +470,6 @@ export class TaskService {
         priorityMap[input.priority] || input.priority.toUpperCase();
     }
 
-    // ✅ Track if status is changing
     const statusChanged =
       input.status && statusMap[input.status] !== task.status;
     if (input.status) {
@@ -428,24 +477,10 @@ export class TaskService {
     }
 
     if (input.teamId !== undefined) {
-      if (!canManageAll) {
-        const [memberData] = await db
-          .select({ teamId: workspaceMembers.teamId })
-          .from(workspaceMembers)
-          .where(
-            and(
-              eq(workspaceMembers.userId, userId),
-              eq(workspaceMembers.workspaceId, task.workspaceId),
-            ),
-          )
-          .limit(1);
-        updateData.teamId = memberData?.teamId || input.teamId;
-      } else {
-        updateData.teamId = input.teamId;
-      }
+      updateData.teamId = input.teamId;
     }
 
-    if (input.assigneeIds !== undefined && canManageAll) {
+    if (input.assigneeIds !== undefined && (canManageAll || canManageTeam)) {
       await db.delete(taskAssignees).where(eq(taskAssignees.taskId, taskId));
       if (input.assigneeIds.length > 0) {
         await db
@@ -469,11 +504,9 @@ export class TaskService {
 
     await db.update(tasks).set(updateData).where(eq(tasks.id, taskId));
 
-    // ✅ Log activity ONCE - based on what changed
     const taskTitle = input.title || task.title;
 
     if (statusChanged) {
-      // Only status changed
       await activityService.logActivity({
         userId: userId,
         workspaceId: workspaceId,
@@ -483,7 +516,6 @@ export class TaskService {
         details: { taskTitle, oldStatus: task.status, newStatus: input.status },
       });
     } else {
-      // Other changes (title, description, assignees, etc.)
       await activityService.logActivity({
         userId: userId,
         workspaceId: workspaceId,
@@ -513,19 +545,14 @@ export class TaskService {
       .limit(1);
     if (!task) throw new Error("Task not found");
 
-    const canManageAll =
-      userPermissions.includes("team_management") ||
-      userPermissions.includes("user_management");
-
+    const canManageAll = userPermissions.includes("user_management");
     const isCreator = task.createdById === userId;
-
     const canDelete = canManageAll || isCreator;
 
     if (!canDelete) {
       throw new Error("You can only delete tasks you created");
     }
 
-    // ✅ Log activity BEFORE deleting
     await activityService.logActivity({
       userId: userId,
       workspaceId: workspaceId,
@@ -535,10 +562,7 @@ export class TaskService {
       details: { taskTitle: task.title },
     });
 
-    // Delete task_assignees first
     await db.delete(taskAssignees).where(eq(taskAssignees.taskId, taskId));
-
-    // Delete the task
     await db.delete(tasks).where(eq(tasks.id, taskId));
 
     return { success: true };

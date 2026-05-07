@@ -5,6 +5,7 @@ import {
   users,
   workspaceMembers,
   emailLogs,
+  teams,
 } from "../../db/schema";
 import { eq, and, desc, count, gte } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
@@ -24,7 +25,6 @@ export interface UpdateTemplateInput {
   category?: string;
 }
 
-// ✅ Use the auth EmailService for sending
 const brevoService = new BrevoEmailService();
 
 export class EmailService {
@@ -110,16 +110,28 @@ export class EmailService {
   // ==================== RECIPIENTS ====================
 
   async getRecipients(workspaceId: string, search?: string) {
+    // FIXED: Get team from workspace_members + teams join instead of users.team
     return db
       .select({
         id: users.id,
         name: users.name,
         email: users.email,
-        team: users.team,
+        team: teams.name, // FIXED: Get team name from teams table via workspace_members
       })
       .from(users)
       .innerJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
-      .where(eq(workspaceMembers.workspaceId, workspaceId));
+      .leftJoin(teams, eq(workspaceMembers.teamId, teams.id))
+      .where(
+        search
+          ? and(
+              eq(workspaceMembers.workspaceId, workspaceId),
+              eq(users.isActive, true),
+            )
+          : and(
+              eq(workspaceMembers.workspaceId, workspaceId),
+              eq(users.isActive, true),
+            ),
+      );
   }
 
   // ==================== EMAIL STATS ====================
@@ -128,7 +140,6 @@ export class EmailService {
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Total counts
     const [totalSent] = await db
       .select({ count: count() })
       .from(emailLogs)
@@ -174,7 +185,6 @@ export class EmailService {
         ),
       );
 
-    // This month by status
     const [thisMonthDelivered] = await db
       .select({ count: count() })
       .from(emailLogs)
@@ -243,15 +253,17 @@ export class EmailService {
 
     try {
       for (const recipientEmail of recipients) {
-        // Get recipient details from database
+        // FIXED: Get recipient details with team from workspace_members
         const [recipient] = await db
           .select({
             id: users.id,
             name: users.name,
             email: users.email,
-            team: users.team,
+            team: teams.name, // FIXED: Get team from teams table via workspace_members
           })
           .from(users)
+          .leftJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
+          .leftJoin(teams, eq(workspaceMembers.teamId, teams.id))
           .where(eq(users.email, recipientEmail))
           .limit(1);
 
@@ -289,7 +301,7 @@ export class EmailService {
           attachments,
         );
 
-        // ✅ Log email to database
+        // Log email to database
         await db.insert(emailLogs).values({
           workspaceId: workspaceId,
           senderId: userId,

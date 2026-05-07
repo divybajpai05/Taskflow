@@ -7,6 +7,7 @@ import {
   leaves,
   teams,
   roles,
+  leaveTypes,
 } from "../../db/schema";
 import { eq, and, gte, lte, count, sql } from "drizzle-orm";
 
@@ -22,14 +23,20 @@ export class HRDashboardService {
   ) {
     const now = new Date();
 
-    // ✅ Use provided dates or default to today
     const todayStart = dateFrom
-      ? new Date(dateFrom)
-      : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      ? new Date(dateFrom + "T00:00:00.000")
+      : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const todayEnd = dateTo
-      ? new Date(dateTo + "T23:59:59")
-      : new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      ? new Date(dateTo + "T23:59:59.999")
+      : new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          23,
+          59,
+          59,
+          999,
+        );
 
     const deptFilter =
       department && department !== "all" ? [eq(teams.name, department)] : [];
@@ -39,7 +46,14 @@ export class HRDashboardService {
       .select({ count: count() })
       .from(workspaceMembers)
       .leftJoin(teams, eq(workspaceMembers.teamId, teams.id))
-      .where(and(eq(workspaceMembers.workspaceId, workspaceId), ...deptFilter));
+      .leftJoin(users, eq(workspaceMembers.userId, users.id))
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspaceId),
+          eq(users.isActive, true),
+          ...deptFilter,
+        ),
+      );
 
     // Active employees
     const [activeEmp] = await db
@@ -55,9 +69,9 @@ export class HRDashboardService {
         ),
       );
 
-    // ✅ On Leave - Head Count (unique employees) for the selected date range
+    // On Leave - Get unique users on leave for the selected date
     const leaveUserIds = await db
-      .select({ userId: leaves.userId })
+      .selectDistinct({ userId: leaves.userId })
       .from(leaves)
       .where(
         and(
@@ -66,11 +80,10 @@ export class HRDashboardService {
           lte(leaves.startDate, todayEnd),
           gte(leaves.endDate, todayStart),
         ),
-      )
-      .groupBy(leaves.userId);
+      );
 
     const attendanceLeaveUserIds = await db
-      .select({ userId: attendance.userId })
+      .selectDistinct({ userId: attendance.userId })
       .from(attendance)
       .where(
         and(
@@ -79,17 +92,16 @@ export class HRDashboardService {
           gte(attendance.date, todayStart),
           lte(attendance.date, todayEnd),
         ),
-      )
-      .groupBy(attendance.userId);
+      );
 
-    const onLeaveHeadCount = new Set([
+    const onLeaveUserIds = new Set([
       ...leaveUserIds.map((l) => l.userId),
       ...attendanceLeaveUserIds.map((a) => a.userId),
-    ]).size;
+    ]);
 
-    // Present in date range
-    const [presentCount] = await db
-      .select({ count: count() })
+    // Present Today
+    const presentUserIds = await db
+      .selectDistinct({ userId: attendance.userId })
       .from(attendance)
       .leftJoin(users, eq(attendance.userId, users.id))
       .leftJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
@@ -104,9 +116,13 @@ export class HRDashboardService {
         ),
       );
 
-    // Absent in date range
-    const [absentCount] = await db
-      .select({ count: count() })
+    const presentCount = presentUserIds.filter(
+      (p) => !onLeaveUserIds.has(p.userId),
+    ).length;
+
+    // Absent Today
+    const absentUserIds = await db
+      .selectDistinct({ userId: attendance.userId })
       .from(attendance)
       .leftJoin(users, eq(attendance.userId, users.id))
       .leftJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
@@ -120,6 +136,8 @@ export class HRDashboardService {
           ...deptFilter,
         ),
       );
+
+    const absentCount = absentUserIds.length;
 
     // New hires in date range
     const [newHires] = await db
@@ -136,12 +154,20 @@ export class HRDashboardService {
         ),
       );
 
+    console.log("HR KPI Data:", {
+      totalEmployees: totalEmp?.count || 0,
+      activeEmployees: activeEmp?.count || 0,
+      onLeave: onLeaveUserIds.size,
+      presentToday: presentCount,
+      absentToday: absentCount,
+    });
+
     return {
       totalEmployees: totalEmp?.count || 0,
       activeEmployees: activeEmp?.count || 0,
-      onLeave: onLeaveHeadCount,
-      presentToday: presentCount?.count || 0,
-      absentToday: absentCount?.count || 0,
+      onLeave: onLeaveUserIds.size,
+      presentToday: presentCount,
+      absentToday: absentCount,
       newHiresThisMonth: newHires?.count || 0,
     };
   }
@@ -159,14 +185,80 @@ export class HRDashboardService {
     const deptFilter =
       department && department !== "all" ? [eq(teams.name, department)] : [];
 
-    // Get total members for percentage calculation
+    // FIXED: Fetch dynamic leave types from database
+    const workspaceLeaveTypes = await db
+      .select()
+      .from(leaveTypes)
+      .where(
+        and(
+          eq(leaveTypes.workspaceId, workspaceId),
+          eq(leaveTypes.isActive, true),
+        ),
+      );
+
+    console.log(
+      "Workspace Leave Types:",
+      JSON.stringify(workspaceLeaveTypes, null, 2),
+    );
+
+    // Build color map and name map from workspace leave types
+    const leaveTypeColorMap: Record<string, string> = {};
+    const leaveTypeIdToNameMap: Record<string, string> = {};
+
+    workspaceLeaveTypes.forEach((lt) => {
+      leaveTypeColorMap[lt.name] = lt.color;
+      leaveTypeIdToNameMap[lt.id] = lt.name;
+      // Also store by ID for fallback
+      leaveTypeColorMap[lt.id] = lt.color;
+    });
+
+    // Default colors for fallback
+    const defaultColors = [
+      "#3b82f6",
+      "#ef4444",
+      "#f59e0b",
+      "#10b981",
+      "#8b5cf6",
+      "#ec4899",
+      "#06b6d4",
+      "#f97316",
+    ];
+
+    // Get total active members
     const [totalMembers] = await db
       .select({ count: count() })
       .from(workspaceMembers)
       .leftJoin(teams, eq(workspaceMembers.teamId, teams.id))
-      .where(and(eq(workspaceMembers.workspaceId, workspaceId), ...deptFilter));
+      .leftJoin(users, eq(workspaceMembers.userId, users.id))
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspaceId),
+          eq(users.isActive, true),
+          ...deptFilter,
+        ),
+      );
 
     const total = totalMembers?.count || 1;
+
+    // Today's date range
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      0,
+      0,
+      0,
+      0,
+    );
+    const todayEnd = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+      999,
+    );
 
     // Department distribution
     const departmentDistribution = await db
@@ -176,24 +268,30 @@ export class HRDashboardService {
       })
       .from(workspaceMembers)
       .leftJoin(teams, eq(workspaceMembers.teamId, teams.id))
-      .where(eq(workspaceMembers.workspaceId, workspaceId))
+      .leftJoin(users, eq(workspaceMembers.userId, users.id))
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspaceId),
+          eq(users.isActive, true),
+        ),
+      )
       .groupBy(teams.name);
 
-    // Attendance trend (last 10 days from the date range)
-    const attendanceTrend = [];
-    const endDate = dateTo ? new Date(dateTo) : new Date();
+    // Attendance trend
+    const endDate = dateTo ? new Date(dateTo + "T23:59:59.999") : new Date();
     const startDate = dateFrom
-      ? new Date(dateFrom)
+      ? new Date(dateFrom + "T00:00:00.000")
       : new Date(Date.now() - 9 * 24 * 60 * 60 * 1000);
+    startDate.setHours(0, 0, 0, 0);
 
-    // Calculate days between start and end
     const daysDiff = Math.min(
-      9,
+      30,
       Math.ceil(
         (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000),
       ),
     );
 
+    const attendanceTrend = [];
     for (let i = daysDiff; i >= 0; i--) {
       const date = new Date(endDate);
       date.setDate(date.getDate() - i);
@@ -201,11 +299,23 @@ export class HRDashboardService {
         date.getFullYear(),
         date.getMonth(),
         date.getDate(),
+        0,
+        0,
+        0,
+        0,
       );
-      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+      const dayEnd = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        23,
+        59,
+        59,
+        999,
+      );
 
-      const [presentData] = await db
-        .select({ count: count() })
+      const presentUsers = await db
+        .selectDistinct({ userId: attendance.userId })
         .from(attendance)
         .leftJoin(users, eq(attendance.userId, users.id))
         .leftJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
@@ -220,8 +330,8 @@ export class HRDashboardService {
           ),
         );
 
-      const [absentData] = await db
-        .select({ count: count() })
+      const absentUsers = await db
+        .selectDistinct({ userId: attendance.userId })
         .from(attendance)
         .leftJoin(users, eq(attendance.userId, users.id))
         .leftJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
@@ -236,7 +346,9 @@ export class HRDashboardService {
           ),
         );
 
-      const presentCount = presentData?.count || 0;
+      const presentCount = presentUsers.length;
+      const percentage =
+        total > 0 ? Math.round((presentCount / total) * 100) : 0;
 
       attendanceTrend.push({
         date: date.toLocaleDateString("en-GB", {
@@ -244,32 +356,118 @@ export class HRDashboardService {
           month: "short",
         }),
         present: presentCount,
-        absent: absentData?.count || 0,
+        absent: absentUsers.length,
         total: total,
-        percentage: total > 0 ? Math.round((presentCount / total) * 100) : 0,
+        percentage: percentage,
       });
     }
 
-    // Leave trend (last 6 months) - Head Count
-    const leaveTrend = [];
+    // ============ DYNAMIC LEAVE DISTRIBUTION ============
+
+    // FIXED: Today's leave types with proper JOIN to leaveTypes table
+    const todayLeavesData = await db
+      .select({
+        leaveTypeId: leaves.leaveTypeId,
+        leaveTypeName: leaveTypes.name,
+        leaveTypeColor: leaveTypes.color,
+        userId: leaves.userId,
+      })
+      .from(leaves)
+      .leftJoin(leaveTypes, eq(leaves.leaveTypeId, leaveTypes.id))
+      .where(
+        and(
+          eq(leaves.workspaceId, workspaceId),
+          eq(leaves.status, "APPROVED"),
+          lte(leaves.startDate, todayEnd),
+          gte(leaves.endDate, todayStart),
+        ),
+      );
+
+    console.log(
+      "Today's Leave Data:",
+      JSON.stringify(todayLeavesData, null, 2),
+    );
+
+    // Group today's leaves by leave type name
+    const todayLeaveTypeMap = new Map<
+      string,
+      { userIds: Set<string>; color: string }
+    >();
+    let fallbackColorIndex = 0;
+
+    todayLeavesData.forEach((leave) => {
+      // Use the actual name from the join, or fallback to ID mapping, then to "Other"
+      let typeName =
+        leave.leaveTypeName ||
+        leaveTypeIdToNameMap[leave.leaveTypeId || ""] ||
+        "Other";
+
+      let color =
+        leave.leaveTypeColor ||
+        leaveTypeColorMap[typeName] ||
+        defaultColors[fallbackColorIndex % defaultColors.length];
+
+      if (!leave.leaveTypeColor && !leaveTypeColorMap[typeName]) {
+        fallbackColorIndex++;
+      }
+
+      if (!todayLeaveTypeMap.has(typeName)) {
+        todayLeaveTypeMap.set(typeName, {
+          userIds: new Set(),
+          color: color,
+        });
+      }
+      todayLeaveTypeMap.get(typeName)!.userIds.add(leave.userId);
+    });
+
+    // Build today's leave types array
+    const todayLeaveTypes: { type: string; count: number; color: string }[] =
+      [];
+    todayLeaveTypeMap.forEach((data, typeName) => {
+      todayLeaveTypes.push({
+        type: typeName,
+        count: data.userIds.size,
+        color: data.color,
+      });
+    });
+
+    const todayLeaveCount = new Set(todayLeavesData.map((l) => l.userId)).size;
+
+    console.log("Today Leave Types:", JSON.stringify(todayLeaveTypes, null, 2));
+    console.log("Today Leave Count:", todayLeaveCount);
+
+    // FIXED: Monthly leave trend with proper JOIN
+    const monthlyLeaveTrend: any[] = [];
+
     for (let i = 5; i >= 0; i--) {
       const monthStart = new Date(
-        new Date().getFullYear(),
-        new Date().getMonth() - i,
+        now.getFullYear(),
+        now.getMonth() - i,
         1,
+        0,
+        0,
+        0,
+        0,
       );
       const monthEnd = new Date(
-        new Date().getFullYear(),
-        new Date().getMonth() - i + 1,
+        now.getFullYear(),
+        now.getMonth() - i + 1,
         0,
         23,
         59,
         59,
+        999,
       );
 
-      const leaveUserIds = await db
-        .select({ userId: leaves.userId })
+      const monthLeaves = await db
+        .select({
+          leaveTypeId: leaves.leaveTypeId,
+          leaveTypeName: leaveTypes.name,
+          leaveTypeColor: leaveTypes.color,
+          userId: leaves.userId,
+        })
         .from(leaves)
+        .leftJoin(leaveTypes, eq(leaves.leaveTypeId, leaveTypes.id))
         .where(
           and(
             eq(leaves.workspaceId, workspaceId),
@@ -279,28 +477,75 @@ export class HRDashboardService {
           ),
         );
 
-      const attendanceUserIds = await db
-        .select({ userId: attendance.userId })
-        .from(attendance)
-        .where(
-          and(
-            eq(attendance.workspaceId, workspaceId),
-            eq(attendance.status, "ON_LEAVE"),
-            gte(attendance.date, monthStart),
-            lte(attendance.date, monthEnd),
-          ),
-        );
+      // Count unique employees per leave type
+      const typeUserMap = new Map<string, Set<string>>();
 
-      const uniqueUserIds = new Set([
-        ...leaveUserIds.map((l) => l.userId),
-        ...attendanceUserIds.map((a) => a.userId),
-      ]);
+      monthLeaves.forEach((leave) => {
+        const typeName =
+          leave.leaveTypeName ||
+          leaveTypeIdToNameMap[leave.leaveTypeId || ""] ||
+          "Other";
 
-      leaveTrend.push({
-        month: monthStart.toLocaleDateString("en-GB", { month: "short" }),
-        count: uniqueUserIds.size,
+        if (!typeUserMap.has(typeName)) {
+          typeUserMap.set(typeName, new Set());
+        }
+        typeUserMap.get(typeName)!.add(leave.userId);
       });
+
+      // Build month entry with dynamic leave type counts
+      const monthEntry: any = {
+        month: monthStart.toLocaleDateString("en-GB", { month: "short" }),
+      };
+
+      let totalForMonth = 0;
+
+      // Initialize all active leave types with 0
+      workspaceLeaveTypes.forEach((lt) => {
+        const userSet = typeUserMap.get(lt.name) || new Set();
+        monthEntry[lt.name] = userSet.size;
+        totalForMonth += userSet.size;
+      });
+
+      // Add any unknown leave types found in data
+      typeUserMap.forEach((userIds, typeName) => {
+        if (!monthEntry.hasOwnProperty(typeName)) {
+          monthEntry[typeName] = userIds.size;
+          totalForMonth += userIds.size;
+        }
+      });
+
+      monthEntry.total = totalForMonth;
+      monthlyLeaveTrend.push(monthEntry);
     }
+
+    console.log(
+      "Monthly Leave Trend:",
+      JSON.stringify(monthlyLeaveTrend, null, 2),
+    );
+
+    // Get all unique leave type names
+    const allLeaveTypeNames = workspaceLeaveTypes.map((lt) => lt.name);
+
+    // Also include any types found in data but not in workspace config
+    monthlyLeaveTrend.forEach((month) => {
+      Object.keys(month).forEach((key) => {
+        if (
+          key !== "month" &&
+          key !== "total" &&
+          !allLeaveTypeNames.includes(key)
+        ) {
+          allLeaveTypeNames.push(key);
+          // Assign a color if not already mapped
+          if (!leaveTypeColorMap[key]) {
+            leaveTypeColorMap[key] =
+              defaultColors[allLeaveTypeNames.length % defaultColors.length];
+          }
+        }
+      });
+    });
+
+    console.log("All Leave Type Names:", allLeaveTypeNames);
+    console.log("Leave Type Colors:", leaveTypeColorMap);
 
     return {
       departmentDistribution: departmentDistribution.map((d) => ({
@@ -308,26 +553,46 @@ export class HRDashboardService {
         count: d.count,
       })),
       attendanceTrend,
-      leaveTrend,
+      leaveByType: todayLeaveTypes,
+      monthlyLeaveTrend,
+      todayLeaveCount,
+      todayLeaveTypes,
+      leaveTypeNames: allLeaveTypeNames,
+      leaveTypeColors: leaveTypeColorMap,
     };
   }
 
   /**
    * Get employee lists by status
    */
-  async getEmployeeLists(workspaceId: string, department?: string) {
-    const today = new Date();
-    const todayStart = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-    );
-    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+  async getEmployeeLists(
+    workspaceId: string,
+    department?: string,
+    memberId?: string,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
+    const now = new Date();
+    const todayStart = dateFrom
+      ? new Date(dateFrom + "T00:00:00.000")
+      : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const todayEnd = dateTo
+      ? new Date(dateTo + "T23:59:59.999")
+      : new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          23,
+          59,
+          59,
+          999,
+        );
 
     const deptFilter =
       department && department !== "all" ? [eq(teams.name, department)] : [];
+    const memberFilter =
+      memberId && memberId !== "all" ? [eq(users.id, memberId)] : [];
 
-    // Get all workspace members
     const members = await db
       .select({
         id: users.id,
@@ -346,10 +611,10 @@ export class HRDashboardService {
           eq(workspaceMembers.workspaceId, workspaceId),
           eq(users.isActive, true),
           ...deptFilter,
+          ...memberFilter,
         ),
       );
 
-    // Get today's attendance
     const todayAttendance = await db
       .select({ userId: attendance.userId, status: attendance.status })
       .from(attendance)
@@ -361,13 +626,15 @@ export class HRDashboardService {
         ),
       );
 
-    const attendanceMap = new Map(
-      todayAttendance.map((a) => [a.userId, a.status]),
-    );
+    const attendanceMap = new Map<string, string>();
+    todayAttendance.forEach((a) => {
+      if (!attendanceMap.has(a.userId)) {
+        attendanceMap.set(a.userId, a.status);
+      }
+    });
 
-    // Get today's on-leave users
     const todayLeaves = await db
-      .select({ userId: leaves.userId })
+      .selectDistinct({ userId: leaves.userId })
       .from(leaves)
       .where(
         and(
@@ -378,32 +645,32 @@ export class HRDashboardService {
         ),
       );
 
-    const todayAttendanceLeave = await db
-      .select({ userId: attendance.userId })
-      .from(attendance)
-      .where(
-        and(
-          eq(attendance.workspaceId, workspaceId),
-          eq(attendance.status, "ON_LEAVE"),
-          gte(attendance.date, todayStart),
-          lte(attendance.date, todayEnd),
-        ),
-      );
+    const leaveSet = new Set(todayLeaves.map((l) => l.userId));
 
-    const leaveSet = new Set([
-      ...todayLeaves.map((l) => l.userId),
-      ...todayAttendanceLeave.map((a) => a.userId),
-    ]);
-
-    // Categorize employees
     const present: any[] = [];
     const absent: any[] = [];
     const onLeave: any[] = [];
     const halfDay: any[] = [];
+    const notMarked: any[] = [];
 
     members.forEach((member) => {
       const attStatus = attendanceMap.get(member.id);
       const isOnLeave = leaveSet.has(member.id);
+
+      let status: string;
+      if (isOnLeave) {
+        status = "onleave";
+      } else if (attStatus === "PRESENT" || attStatus === "LATE") {
+        status = "present";
+      } else if (attStatus === "HALF_DAY") {
+        status = "halfDay";
+      } else if (attStatus === "ABSENT") {
+        status = "absent";
+      } else if (attStatus === "ON_LEAVE") {
+        status = "onleave";
+      } else {
+        status = "notMarked";
+      }
 
       const employee = {
         id: member.id,
@@ -419,23 +686,16 @@ export class HRDashboardService {
             .join("")
             .toUpperCase()
             .slice(0, 2) || "?",
-        status: isOnLeave
-          ? "onleave"
-          : attStatus === "PRESENT" || attStatus === "LATE"
-            ? "present"
-            : attStatus === "HALF_DAY"
-              ? "halfDay"
-              : attStatus === "ABSENT"
-                ? "absent"
-                : "present",
+        status,
       };
 
-      if (isOnLeave) onLeave.push(employee);
-      else if (attStatus === "HALF_DAY") halfDay.push(employee);
-      else if (attStatus === "ABSENT") absent.push(employee);
-      else present.push(employee);
+      if (status === "onleave") onLeave.push(employee);
+      else if (status === "halfDay") halfDay.push(employee);
+      else if (status === "absent") absent.push(employee);
+      else if (status === "present") present.push(employee);
+      else notMarked.push(employee);
     });
 
-    return { present, absent, onLeave, halfDay };
+    return { present, absent, onLeave, halfDay, notMarked };
   }
 }

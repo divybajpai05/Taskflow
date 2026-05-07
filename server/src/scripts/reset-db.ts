@@ -15,25 +15,47 @@ async function resetDatabase() {
   // Disable foreign key checks
   await connection.execute(`SET FOREIGN_KEY_CHECKS = 0`);
 
-  // Drop tables one by one in correct order (child tables first)
+  // Drop tables in correct order (child tables first, parents last)
+  // Tables with foreign keys referencing other tables must be dropped first
   const tables = [
+    // Email logs
+    "email_logs",
+
+    // Activity and audit
     "activity_logs",
+
+    // Task-related
+    "task_assignees",
+    "tasks",
+
+    // Attendance and leaves
     "attendance",
     "leaves",
-    "email_templates",
-    "tasks",
+    "leave_types",
+
+    // Permissions
     "user_permissions",
     "role_permissions",
     "permissions",
+
+    // Email templates
+    "email_templates",
+
+    // Users and workspace members
+    "workspace_members",
     "users",
+
+    // Organization structure
     "teams",
     "roles",
+
+    // Top-level
     "workspaces",
   ];
 
   for (const table of tables) {
     try {
-      await connection.execute(`DROP TABLE IF EXISTS ${table}`);
+      await connection.execute(`DROP TABLE IF EXISTS \`${table}\``);
       console.log(`  ✓ Dropped ${table}`);
     } catch (error: any) {
       console.log(`  ⚠️ Failed to drop ${table}: ${error.message}`);

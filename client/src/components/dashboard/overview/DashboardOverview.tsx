@@ -120,7 +120,7 @@ export default function DashboardOverview() {
         <p className="text-lg font-semibold text-neutral-800 dark:text-neutral-200">
           Performance Overview
         </p>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <TaskStatusChart data={stats.taskStatuses} />
           <PriorityBreakdownChart data={stats.taskPriorities} />
           <DepartmentHeadcountChart data={stats.departmentHeadcount} />

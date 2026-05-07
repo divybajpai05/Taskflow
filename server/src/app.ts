@@ -18,6 +18,7 @@ import calendarRoutes from "./modules/calendar/calendar.routes";
 import hrCalendarRoutes from "./modules/hr-calendar/hr-calendar.routes";
 import hrDashboardRoutes from "./modules/hr-dashboard/hr-dashboard.routes";
 import analyticsRoutes from "./modules/analytics/analytics.routes";
+import leaveTypesRoutes from "./modules/leave-types/leave-types.routes";
 
 
 import { db } from "./db/drizzle";
@@ -84,6 +85,7 @@ app.use("/api/calendar", calendarRoutes);
 app.use("/api/hr-calendar", hrCalendarRoutes);
 app.use("/api/hr-dashboard", hrDashboardRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/leave-types", leaveTypesRoutes);
 
 
 // Health check

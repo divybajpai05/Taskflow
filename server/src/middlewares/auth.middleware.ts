@@ -2,7 +2,7 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../utils/jwt";
 import { AuthService } from "../modules/auth/auth.service";
-import { users, teams, workspaceMembers } from "../db/schema";
+import { teams, workspaceMembers } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 import { db } from "../db/drizzle";
 
@@ -14,10 +14,11 @@ declare global {
         email: string;
         workspaceId: string;
         roleId: string;
+        role: string; // ✅ Added role name
         permissions: string[];
         emailVerified: boolean;
         teamId?: string | null;
-        team?: string | null; // ✅ ADD THIS
+        team?: string | null;
       };
     }
   }
@@ -43,20 +44,20 @@ export async function authenticate(
     const token = authHeader.replace("Bearer ", "");
     const decoded = verifyAccessToken(token);
 
-    // ✅ Get workspace from header (frontend sends this after switching)
+    // Get workspace from header (frontend sends this after switching)
     const workspaceId =
       (req.headers["x-workspace-id"] as string) || decoded.workspaceId;
 
-    // ✅ Get user with permissions for the current workspace
+    // Get user with permissions for the current workspace
     const userWithPerms = await authService.getUserWithPermissions(
       decoded.userId,
-      workspaceId, // ✅ Pass workspace context
+      workspaceId,
     );
 
     console.log("🔵 Authenticated user:", userWithPerms.name);
     console.log("🔵 Permissions:", userWithPerms.permissions);
 
-    // ✅ Get team from workspace_members for the CURRENT workspace
+    // Get team from workspace_members for the CURRENT workspace
     let userTeamId: string | null = null;
     let userTeam: string | null = null;
 
@@ -74,7 +75,6 @@ export async function authenticate(
     if (memberData?.teamId) {
       userTeamId = memberData.teamId;
 
-      // ✅ Get team name from teams table
       const [teamData] = await db
         .select({ name: teams.name })
         .from(teams)
@@ -92,10 +92,11 @@ export async function authenticate(
       email: userWithPerms.email,
       workspaceId: workspaceId,
       roleId: decoded.roleId,
+      role: userWithPerms.role, // ✅ Added
       permissions: userWithPerms.permissions,
-      emailVerified: userWithPerms.emailVerified,
-      teamId: userTeamId, // ✅ Workspace-specific team ID
-      team: userTeam, // ✅ Workspace-specific team name
+      emailVerified: userWithPerms.emailVerified ?? false, // ✅ FIXED: nullish coalescing
+      teamId: userTeamId,
+      team: userTeam,
     };
 
     next();

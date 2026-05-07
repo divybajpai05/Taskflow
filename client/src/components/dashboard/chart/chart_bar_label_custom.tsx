@@ -67,7 +67,7 @@ export function DepartmentHeadcountChart({
   }
 
   return (
-    <Card className="w-full">
+    <Card className="w-full flex flex-col justify-between">
       <CardHeader>
         <CardTitle>Department Headcount</CardTitle>
         <CardDescription>

@@ -67,7 +67,6 @@ export class UserService {
     userId: string,
     roleId: string,
   ): Promise<string[]> {
-    // Get role default permissions
     const rolePerms = await db
       .select({ name: permissions.name })
       .from(rolePermissions)
@@ -78,7 +77,6 @@ export class UserService {
       rolePerms.map((p: { name: string }) => p.name),
     );
 
-    // Apply user-specific overrides
     const overrides = await db
       .select({
         name: permissions.name,
@@ -103,7 +101,6 @@ export class UserService {
    * Get all users in a workspace
    */
   async getWorkspaceUsers(workspaceId: string, search?: string) {
-    // Use a single query with conditional where
     const userList = await db
       .select({
         id: users.id,
@@ -138,7 +135,6 @@ export class UserService {
           : eq(workspaceMembers.workspaceId, workspaceId),
       );
 
-    // Get permissions for each user
     const usersWithPermissions = await Promise.all(
       userList.map(async (user) => {
         const perms = await this.getUserPermissions(user.id, user.roleId);
@@ -173,22 +169,24 @@ export class UserService {
    * Get single user by ID
    */
   async getUserById(userId: string, workspaceId?: string) {
+    const whereClause = workspaceId
+      ? and(eq(users.id, userId), eq(workspaceMembers.workspaceId, workspaceId))
+      : eq(users.id, userId);
+
     const [user] = await db
       .select({
         id: users.id,
         name: users.name,
         email: users.email,
         phone: users.phone,
-        roleId: workspaceId ? workspaceMembers.roleId : users.roleId,
+        roleId: workspaceMembers.roleId,
         role: roles.name,
-        team: workspaceId ? teams.name : users.team,
-        teamId: workspaceId ? workspaceMembers.teamId : users.teamId,
+        team: teams.name,
+        teamId: workspaceMembers.teamId,
         isActive: users.isActive,
         emailVerified: users.emailVerified,
         avatar: users.avatar,
-        workspaceId: workspaceId
-          ? workspaceMembers.workspaceId
-          : users.workspaceId,
+        workspaceId: workspaceMembers.workspaceId,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
         lastLoginAt: users.lastLoginAt,
@@ -197,14 +195,7 @@ export class UserService {
       .innerJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
       .innerJoin(roles, eq(workspaceMembers.roleId, roles.id))
       .leftJoin(teams, eq(workspaceMembers.teamId, teams.id))
-      .where(
-        workspaceId
-          ? and(
-              eq(users.id, userId),
-              eq(workspaceMembers.workspaceId, workspaceId),
-            )
-          : eq(users.id, userId),
-      )
+      .where(whereClause)
       .limit(1);
 
     if (!user) {
@@ -238,106 +229,23 @@ export class UserService {
   /**
    * Create a new user
    */
-  // async createUser(
-  //   input: CreateUserInput,
-  //   workspaceId: string,
-  //   createdById?: string,
-  // ) {
-  //   const { name, email, password, roleId, team, phone } = input;
-
-  //   // Check if email already exists
-  //   const existingUser = await db
-  //     .select()
-  //     .from(users)
-  //     .where(eq(users.email, email))
-  //     .limit(1);
-
-  //   if (existingUser.length > 0) {
-  //     throw new Error("User with this email already exists");
-  //   }
-
-  //   // Validate role exists
-  //   const [role] = await db
-  //     .select()
-  //     .from(roles)
-  //     .where(eq(roles.id, roleId))
-  //     .limit(1);
-
-  //   if (!role) {
-  //     throw new Error("Invalid role");
-  //   }
-
-  //   // Hash password
-  //   const hashedPassword = await argon2.hash(password, {
-  //     type: argon2.argon2id,
-  //     memoryCost: 19456,
-  //     timeCost: 2,
-  //     parallelism: 1,
-  //   });
-
-  //   const userId = uuidv4();
-
-  //   // Create user
-  //   await db.insert(users).values({
-  //     id: userId,
-  //     email,
-  //     name,
-  //     phone: phone || null,
-  //     password: hashedPassword,
-  //     roleId: roleId,
-  //     workspaceId: workspaceId,
-  //     team: team || null,
-  //     isActive: true,
-  //     emailVerified: true,
-  //   });
-
-  //   // Add user to workspace with role
-  //   await db.insert(workspaceMembers).values({
-  //     userId: userId,
-  //     workspaceId: workspaceId,
-  //     roleId: roleId,
-  //   });
-
-  //   await activityService.logActivity({
-  //     userId: createdById || userId,
-  //     workspaceId: workspaceId,
-  //     action: "user_created",
-  //     entityType: "user",
-  //     entityId: userId,
-  //     details: {
-  //       userName: name,
-  //       userEmail: email,
-  //       role: role.name,
-  //     },
-  //   });
-
-  //   // Send onboarding email
-  //   try {
-  //     const [workspace] = await db
-  //       .select({ name: workspaces.name })
-  //       .from(workspaces)
-  //       .where(eq(workspaces.id, workspaceId))
-  //       .limit(1);
-
-  //     await emailService.sendOnboardingEmail(
-  //       email,
-  //       name,
-  //       password,
-  //       workspace?.name || "Your Workspace",
-  //     );
-  //   } catch (error) {
-  //     console.error("Failed to send onboarding email:", error);
-  //   }
-
-  //   return this.getUserById(userId);
-  // }
-
   async createUser(
     input: CreateUserInput,
     workspaceId: string,
     createdById?: string,
   ) {
     const { name, email, password, roleId, team, phone } = input;
+
+    // Validate role exists
+    const [role] = await db
+      .select()
+      .from(roles)
+      .where(eq(roles.id, roleId))
+      .limit(1);
+
+    if (!role) {
+      throw new Error("Invalid role");
+    }
 
     // Check if user already exists
     const [existingUser] = await db
@@ -349,7 +257,7 @@ export class UserService {
     let userId: string;
     let isNewUser = false;
 
-    // ✅ Look up team ID if team name is provided
+    // Look up team ID if team name is provided
     let teamId: string | null = null;
     if (team) {
       const [teamRecord] = await db
@@ -361,7 +269,7 @@ export class UserService {
     }
 
     if (existingUser) {
-      // ✅ User exists - check if already in this workspace
+      // User exists - check if already in this workspace
       const [existingMember] = await db
         .select()
         .from(workspaceMembers)
@@ -377,18 +285,9 @@ export class UserService {
         throw new Error("User is already a member of this workspace");
       }
 
-      // ✅ Reuse existing user
       userId = existingUser.id;
-
-      // ✅ Update team info on existing user if provided
-      if (team !== undefined) {
-        await db
-          .update(users)
-          .set({ team: team || null, teamId })
-          .where(eq(users.id, userId));
-      }
     } else {
-      // ✅ Create new user
+      // Create new user
       isNewUser = true;
 
       if (!password) {
@@ -404,33 +303,26 @@ export class UserService {
 
       userId = uuidv4();
 
+      // FIXED: No roleId, workspaceId, team, teamId in users table
       await db.insert(users).values({
         id: userId,
         email,
         name,
         phone: phone || null,
         password: hashedPassword,
-        roleId: roleId,
-        workspaceId: workspaceId,
-        team: team || null,
-        teamId: teamId, // ✅ Set teamId
         isActive: true,
         emailVerified: true,
       });
     }
 
-    // ✅ Add user to new workspace
+    // Add user to workspace_members
     await db.insert(workspaceMembers).values({
+      id: uuidv4(),
       userId: userId,
       workspaceId: workspaceId,
       roleId: roleId,
       teamId: teamId,
     });
-
-    // Update role in users table if changing
-    if (existingUser && roleId) {
-      await db.update(users).set({ roleId }).where(eq(users.id, userId));
-    }
 
     // Log activity
     await activityService.logActivity({
@@ -469,7 +361,7 @@ export class UserService {
       }
     }
 
-    return this.getUserById(userId);
+    return this.getUserById(userId, workspaceId);
   }
 
   /**
@@ -495,13 +387,13 @@ export class UserService {
 
     // Check email uniqueness if changed
     if (email && email !== existingUser.email) {
-      const emailTaken = await db
+      const [emailTaken] = await db
         .select()
         .from(users)
         .where(eq(users.email, email))
         .limit(1);
 
-      if (emailTaken.length > 0) {
+      if (emailTaken) {
         throw new Error("Email already in use");
       }
     }
@@ -519,19 +411,18 @@ export class UserService {
       }
     }
 
-    // ✅ Only update GLOBAL user fields (name, email, phone, isActive)
+    // Update global user fields
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email;
     if (phone !== undefined) updateData.phone = phone;
     if (isActive !== undefined) updateData.isActive = isActive;
 
-    // Update user global fields
     if (Object.keys(updateData).length > 0) {
       await db.update(users).set(updateData).where(eq(users.id, userId));
     }
 
-    // ✅ Check if member exists in workspace_members
+    // Check if member exists in workspace_members
     const [existingMember] = await db
       .select()
       .from(workspaceMembers)
@@ -544,19 +435,17 @@ export class UserService {
       .limit(1);
 
     if (!existingMember) {
-      // User not in workspace_members - add them
-      const effectiveRoleId = roleId || existingUser.roleId;
+      // Add to workspace_members
       await db.insert(workspaceMembers).values({
+        id: uuidv4(),
         userId: userId,
         workspaceId: workspaceId,
-        roleId: effectiveRoleId,
+        roleId: roleId || "",
+        teamId: null,
       });
-      console.log(
-        `✅ Added user ${userId} to workspace_members for workspace ${workspaceId}`,
-      );
     }
 
-    // ✅ Update workspace_members for role (workspace-specific!)
+    // Update role in workspace_members
     if (roleId) {
       await db
         .update(workspaceMembers)
@@ -567,25 +456,16 @@ export class UserService {
             eq(workspaceMembers.workspaceId, workspaceId),
           ),
         );
-      console.log(
-        `✅ Updated role in workspace_members for user ${userId} to ${roleId}`,
-      );
     }
 
-    // ✅ Update team in workspace_members (workspace-specific!)
+    // Update team in workspace_members
     if (team !== undefined) {
       if (team && team.trim() !== "") {
-        // Look up the team in this workspace
         const [teamRecord] = await db
           .select({ id: teams.id, name: teams.name })
           .from(teams)
           .where(and(eq(teams.name, team), eq(teams.workspaceId, workspaceId)))
           .limit(1);
-
-        console.log(
-          `🔵 Team lookup for "${team}" in workspace ${workspaceId}:`,
-          teamRecord ? "FOUND" : "NOT FOUND",
-        );
 
         if (teamRecord) {
           await db
@@ -597,16 +477,8 @@ export class UserService {
                 eq(workspaceMembers.workspaceId, workspaceId),
               ),
             );
-          console.log(
-            `✅ Updated team in workspace_members to ${teamRecord.name} (${teamRecord.id})`,
-          );
-        } else {
-          console.log(
-            `⚠️ Team "${team}" not found in workspace ${workspaceId}`,
-          );
         }
       } else {
-        // Clear team
         await db
           .update(workspaceMembers)
           .set({ teamId: null })
@@ -616,24 +488,22 @@ export class UserService {
               eq(workspaceMembers.workspaceId, workspaceId),
             ),
           );
-        console.log(`✅ Cleared team in workspace_members`);
       }
     }
 
     // Log activity
-    // User Updated
-await activityService.logActivity({
-  userId: updatedById,
-  workspaceId: workspaceId,
-  action: `updated user ${name || existingUser.name}`,
-  entityType: "user",
-  entityId: userId,
-  details: {
-    userName: name || existingUser.name,
-    userEmail: email || existingUser.email,
-    changes: input,
-  },
-});
+    await activityService.logActivity({
+      userId: updatedById,
+      workspaceId: workspaceId,
+      action: `updated user ${name || existingUser.name}`,
+      entityType: "user",
+      entityId: userId,
+      details: {
+        userName: name || existingUser.name,
+        userEmail: email || existingUser.email,
+        changes: input,
+      },
+    });
 
     return this.getUserById(userId, workspaceId);
   }
@@ -652,7 +522,15 @@ await activityService.logActivity({
       throw new Error("User not found");
     }
 
-    // ✅ Delete related records first (order matters for foreign keys)
+    // Delete workspace_members first
+    await db
+      .delete(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.userId, userId),
+          eq(workspaceMembers.workspaceId, workspaceId),
+        ),
+      );
 
     // Delete user permission overrides
     await db.delete(userPermissions).where(eq(userPermissions.userId, userId));
@@ -666,30 +544,37 @@ await activityService.logActivity({
     // Delete leaves
     await db.delete(leaves).where(eq(leaves.userId, userId));
 
-    // ✅ Update tasks - set to SQL NULL for NOT NULL columns
+    // Nullify task references
     await db
       .update(tasks)
       .set({ assigneeId: sql`NULL` })
       .where(eq(tasks.assigneeId, userId));
-
     await db
       .update(tasks)
       .set({ createdById: sql`NULL` })
       .where(eq(tasks.createdById, userId));
-
     await db
       .update(tasks)
       .set({ updatedById: sql`NULL` })
       .where(eq(tasks.updatedById, userId));
 
-    // Update email templates
+    // Nullify email template references
     await db
       .update(emailTemplates)
       .set({ createdById: sql`NULL` })
       .where(eq(emailTemplates.createdById, userId));
 
-    // ✅ Finally delete the user
-    await db.delete(users).where(eq(users.id, userId));
+    // Check if user has other workspace memberships
+    const [otherMembership] = await db
+      .select()
+      .from(workspaceMembers)
+      .where(eq(workspaceMembers.userId, userId))
+      .limit(1);
+
+    // Only delete user if no other workspace memberships
+    if (!otherMembership) {
+      await db.delete(users).where(eq(users.id, userId));
+    }
 
     await activityService.logActivity({
       userId: deletedById,
@@ -702,6 +587,7 @@ await activityService.logActivity({
 
     return { success: true, message: "User deleted successfully" };
   }
+
   /**
    * Update all user permissions (replace all overrides)
    */
@@ -709,20 +595,8 @@ await activityService.logActivity({
     userId: string,
     permissions: UserPermissionInput[],
   ) {
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Remove existing overrides
     await db.delete(userPermissions).where(eq(userPermissions.userId, userId));
 
-    // Insert new overrides
     if (permissions.length > 0) {
       await db.insert(userPermissions).values(
         permissions.map((p) => ({
@@ -744,7 +618,6 @@ await activityService.logActivity({
     permissionId: string,
     granted: boolean = true,
   ) {
-    // Check if override already exists
     const [existing] = await db
       .select()
       .from(userPermissions)
@@ -757,7 +630,6 @@ await activityService.logActivity({
       .limit(1);
 
     if (existing) {
-      // Update existing
       await db
         .update(userPermissions)
         .set({ granted })
@@ -768,7 +640,6 @@ await activityService.logActivity({
           ),
         );
     } else {
-      // Insert new
       await db.insert(userPermissions).values({
         userId,
         permissionId,
@@ -809,6 +680,9 @@ await activityService.logActivity({
     return db.select().from(permissions);
   }
 
+  /**
+   * Change password
+   */
   async changePassword(
     userId: string,
     currentPassword: string,
@@ -819,6 +693,7 @@ await activityService.logActivity({
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
+
     if (!user) throw new Error("User not found");
 
     const isValid = await argon2.verify(user.password, currentPassword);

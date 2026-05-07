@@ -18,6 +18,7 @@ const ALL_PERMISSIONS = [
   "hr_dashboard",
   "attendance",
   "leave_management",
+  "leave_type_management", // ✅ ADDED for leave type management
   "hr_calendar",
 
   // Communication
@@ -95,7 +96,7 @@ async function seed() {
     );
 
     // =========================================
-    // ✅ HR ROLE - HR + Team Management (NO admin permissions)
+    // ✅ HR ROLE - HR + Team Management + Leave Type Management
     // =========================================
     console.log("Creating HR role...");
     const hrRoleId = uuidv4();
@@ -114,6 +115,7 @@ async function seed() {
       "hr_dashboard",
       "attendance",
       "leave_management",
+      "leave_type_management", // ✅ HR can manage leave types
       "hr_calendar",
       "email_center",
       "team_management",
@@ -216,7 +218,6 @@ async function seed() {
     console.log(`Role-Permission mappings: ${finalMappings.length}`);
     console.log("");
 
-    // Show each role's permissions
     for (const role of finalRoles) {
       const rolePermList = await db
         .select({ name: permissions.name })
@@ -235,7 +236,6 @@ async function seed() {
     console.log("🎉 SEED COMPLETED SUCCESSFULLY!");
     console.log("================================\n");
 
-    // Print quick reference
     console.log("📋 Permission Matrix:");
     console.log(
       "┌──────────┬──────────────────────────────────────────────────────┐",
@@ -247,13 +247,13 @@ async function seed() {
       "├──────────┼──────────────────────────────────────────────────────┤",
     );
     console.log(
-      "│ Admin    │ ALL permissions                                      │",
+      "│ Admin    │ ALL permissions                                       │",
     );
     console.log(
       "│ HR       │ dashboard, tasks, kanban, calendar, HR module,      │",
     );
     console.log(
-      "│          │ team_management, analytics, activity_logs           │",
+      "│          │ leave_type_management, team_management, analytics   │",
     );
     console.log(
       "│ Manager  │ dashboard, tasks, kanban, calendar, analytics,      │",
@@ -274,13 +274,12 @@ async function seed() {
   process.exit(0);
 }
 
-/**
- * Map permission to module for better organization
- */
 function getModuleForPermission(permission: string): string {
   if (
     permission.startsWith("hr_") ||
-    ["attendance", "leave_management"].includes(permission)
+    ["attendance", "leave_management", "leave_type_management"].includes(
+      permission,
+    )
   )
     return "hr";
   if (
@@ -300,6 +299,5 @@ function getModuleForPermission(permission: string): string {
   return "general";
 }
 
-// Execute
 console.log("Calling seed function...");
 seed();

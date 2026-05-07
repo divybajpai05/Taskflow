@@ -1,6 +1,12 @@
 // src/modules/attendance/attendance.service.ts
 import { db } from "../../db/drizzle";
-import { attendance, users, workspaceMembers, roles } from "../../db/schema";
+import {
+  attendance,
+  users,
+  workspaceMembers,
+  roles,
+  teams,
+} from "../../db/schema";
 import { eq, and, gte, lte, count, inArray } from "drizzle-orm";
 
 export class AttendanceService {
@@ -12,19 +18,20 @@ export class AttendanceService {
     const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0));
     const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999));
 
-    // Get all users in workspace
+    // FIXED: Get team from teams table via workspaceMembers
     const workspaceUsers = await db
       .select({
         id: users.id,
         name: users.name,
         email: users.email,
         avatar: users.avatar,
-        team: users.team,
+        team: teams.name, // FIXED: Get team name from teams table
         role: roles.name,
       })
       .from(users)
       .innerJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
       .innerJoin(roles, eq(workspaceMembers.roleId, roles.id))
+      .leftJoin(teams, eq(workspaceMembers.teamId, teams.id)) // FIXED: Join with teams
       .where(
         and(
           eq(workspaceMembers.workspaceId, workspaceId),
@@ -85,9 +92,8 @@ export class AttendanceService {
     notes?: string,
   ) {
     const targetDate = new Date(date);
-    targetDate.setHours(9, 0, 0, 0); // Set to 9:00 AM
+    targetDate.setHours(9, 0, 0, 0);
 
-    // Check if attendance already exists for this user on this date
     const [existingRecord] = await db
       .select()
       .from(attendance)
@@ -102,7 +108,6 @@ export class AttendanceService {
       .limit(1);
 
     if (existingRecord) {
-      // Update existing record
       await db
         .update(attendance)
         .set({
@@ -114,7 +119,6 @@ export class AttendanceService {
 
       return { ...existingRecord, status, markedById, notes };
     } else {
-      // Create new record
       const newRecord = {
         userId,
         workspaceId,
@@ -242,8 +246,6 @@ export class AttendanceService {
       eq(attendance.workspaceId, workspaceId),
       gte(attendance.date, startDate),
       lte(attendance.date, endDate),
-      // ✅ ALWAYS only show logged-in user's own attendance for background colors
-      // Background colors are PERSONAL - team members' attendance is NOT shown as background
       eq(attendance.userId, userId),
     ];
 

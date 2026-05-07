@@ -16,6 +16,7 @@ import apiClient from "@/api/client";
 interface HRKPICardsProps {
   dateRange: { from: Date; to: Date };
   selectedDepartment: string;
+  selectedMember?: string; // ✅ Added
   refreshKey?: number;
 }
 
@@ -31,6 +32,7 @@ interface HRKPIResponse {
 const HRKPICards: React.FC<HRKPICardsProps> = ({
   dateRange,
   selectedDepartment,
+  selectedMember = "all", // ✅ Added with default
   refreshKey,
 }) => {
   const [kpiData, setKpiData] = useState<HRKPIResponse | null>(null);
@@ -42,6 +44,7 @@ const HRKPICards: React.FC<HRKPICardsProps> = ({
       const params = new URLSearchParams();
       if (selectedDepartment !== "all")
         params.append("department", selectedDepartment);
+      if (selectedMember !== "all") params.append("memberId", selectedMember); // ✅ Added
       if (dateRange.from)
         params.append("dateFrom", format(dateRange.from, "yyyy-MM-dd"));
       if (dateRange.to)
@@ -50,15 +53,13 @@ const HRKPICards: React.FC<HRKPICardsProps> = ({
       const response = await apiClient.get(
         `/hr-dashboard/kpi?${params.toString()}`,
       );
-      if (response.data.success) {
-        setKpiData(response.data.data);
-      }
+      if (response.data.success) setKpiData(response.data.data);
     } catch (error) {
       console.error("Failed to fetch KPI data:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDepartment, dateRange]);
+  }, [selectedDepartment, selectedMember, dateRange]); // ✅ Added selectedMember
 
   useEffect(() => {
     fetchKPI();
@@ -106,13 +107,12 @@ const HRKPICards: React.FC<HRKPICardsProps> = ({
     },
   ];
 
-  if (isLoading) {
+  if (isLoading)
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
-  }
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -123,7 +123,6 @@ const HRKPICards: React.FC<HRKPICardsProps> = ({
           (config.key === "activeEmployees" && kpiData
             ? `${((kpiData.activeEmployees / kpiData.totalEmployees) * 100).toFixed(1)}% of workforce`
             : "");
-
         return (
           <Card key={config.key}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

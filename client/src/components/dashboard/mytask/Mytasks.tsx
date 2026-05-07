@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/tooltip";
 import { Info, Edit2, Trash2, X, Plus, Loader2 } from "lucide-react";
 import { AddTaskModal } from "./AddTaskModal";
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { TaskDetailModal } from "../kanban/TaskDetailModal";
+import { useState, useEffect, useCallback } from "react";
 import { priorityColors } from "../overview/components/ActiveTaskQueue";
 import { cn } from "@/lib/utils";
 import {
@@ -55,6 +56,7 @@ interface Task {
   dueDate?: string;
   createdAt?: string;
   createdById?: string;
+  creatorName?: string;
   selectTeam?: string;
   selectMember?: string[];
   initials?: string;
@@ -88,6 +90,11 @@ export default function TaskTable() {
   const userId = user?.id;
   const userPermissions = user?.permissions || [];
 
+  const isAdmin = userPermissions.includes("user_management");
+  const isTeamManager = userPermissions.includes("team_management");
+  const canManageAll = isAdmin;
+  const canManageTeam = isAdmin || isTeamManager;
+
   const [taskList, setTaskList] = useState<Task[]>([]);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
@@ -96,14 +103,15 @@ export default function TaskTable() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
 
+  // ✅ Task Detail Modal state
+  const [selectedTaskForDetail, setSelectedTaskForDetail] =
+    useState<Task | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTeam, setSelectedTeam] = useState<string>("All");
   const [selectedPriority, setSelectedPriority] = useState<string>("All");
   const [selectedStatus, setSelectedStatus] = useState<string>("All");
-
-  const canManageAll =
-    userPermissions.includes("team_management") ||
-    userPermissions.includes("user_management");
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -185,7 +193,7 @@ export default function TaskTable() {
       status: updatedTask.status,
       dueDate: updatedTask.dueDate,
     };
-    if (canManageAll) {
+    if (canManageTeam) {
       payload.teamId = updatedTask.teamId || undefined;
       payload.assigneeIds = updatedTask.assigneeIds || [];
     }
@@ -213,12 +221,40 @@ export default function TaskTable() {
     }
   };
 
+  // ✅ Open task detail modal
+  const handleTaskClick = (task: Task, e: React.MouseEvent) => {
+    // Don't open detail if clicking on status dropdown or action buttons
+    const target = e.target as HTMLElement;
+    if (
+      target.closest("button") ||
+      target.closest("[role='combobox']") ||
+      target.closest("select")
+    ) {
+      return;
+    }
+    setSelectedTaskForDetail(task);
+    setIsDetailOpen(true);
+  };
+
+  // ✅ Edit from detail modal
+  const handleEditFromDetail = (task: any) => {
+    setIsDetailOpen(false);
+    setSelectedTaskForDetail(null);
+    setEditingTask({
+      ...task,
+      selectTeam: task.teamId || task.teamName || "",
+      selectMember: task.assignees || [],
+    });
+    setIsModalOpen(true);
+  };
+
   const canEditTask = (task: Task) =>
-    canManageAll ||
+    isAdmin ||
+    isTeamManager ||
     task.createdById === userId ||
     (task.assigneeIds || []).includes(userId || "");
-  const canDeleteTask = (task: Task) =>
-    canManageAll || task.createdById === userId;
+
+  const canDeleteTask = (task: Task) => isAdmin || task.createdById === userId;
 
   const getInitials = (name: string) =>
     name
@@ -227,12 +263,14 @@ export default function TaskTable() {
       .join("")
       .toUpperCase()
       .slice(0, 2);
+
   const clearAllFilters = () => {
     setSearchTerm("");
     setSelectedTeam("All");
     setSelectedPriority("All");
     setSelectedStatus("All");
   };
+
   const activeFiltersCount =
     (searchTerm ? 1 : 0) +
     (selectedTeam !== "All" ? 1 : 0) +
@@ -297,10 +335,10 @@ export default function TaskTable() {
                 Team
               </label>
               <Select value={selectedTeam} onValueChange={setSelectedTeam}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full cursor-pointer">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="">
                   <SelectItem value="All">All</SelectItem>
                   {teams.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
@@ -318,7 +356,7 @@ export default function TaskTable() {
                 value={selectedPriority}
                 onValueChange={setSelectedPriority}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full cursor-pointer">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -335,7 +373,7 @@ export default function TaskTable() {
                 Status
               </label>
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full cursor-pointer">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -359,7 +397,7 @@ export default function TaskTable() {
                 variant="outline"
                 size="sm"
                 onClick={clearAllFilters}
-                className="h-10"
+                className="h-10 cursor-pointer"
               >
                 Clear ({activeFiltersCount})
               </Button>
@@ -411,7 +449,8 @@ export default function TaskTable() {
                 taskList.map((task) => (
                   <TableRow
                     key={task.id}
-                    className="group hover:bg-slate-50/30 transition-colors"
+                    className="group hover:bg-slate-50/30 transition-colors cursor-pointer"
+                    onClick={(e) => handleTaskClick(task, e)}
                   >
                     <TableCell className="text-center">
                       {task.description && (
@@ -432,7 +471,7 @@ export default function TaskTable() {
                         <TooltipTrigger asChild>
                           <p
                             className={cn(
-                              "font-medium text-slate-800 truncate cursor-help",
+                              "font-medium text-slate-800 truncate cursor-help hover:text-blue-600 transition-colors",
                               task.status === "Cancelled" &&
                                 "line-through text-slate-400",
                             )}
@@ -461,7 +500,10 @@ export default function TaskTable() {
                         {task.priority}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell
+                      className="text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <Select
                         value={task.status}
                         onValueChange={(v) => handleStatusChange(task.id, v)}
@@ -514,7 +556,10 @@ export default function TaskTable() {
                     <TableCell className="text-center text-sm text-rose-500 tracking-tight">
                       {task.dueDate}
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell
+                      className="text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className="flex items-center justify-center gap-1">
                         {canEditTask(task) && (
                           <Tooltip>
@@ -559,6 +604,42 @@ export default function TaskTable() {
           </Table>
         )}
       </div>
+
+      {/* ✅ Task Detail Modal */}
+      <TaskDetailModal
+        task={
+          selectedTaskForDetail
+            ? {
+                id: selectedTaskForDetail.id,
+                title: selectedTaskForDetail.title,
+                description: selectedTaskForDetail.description || "",
+                status: selectedTaskForDetail.status,
+                priority: selectedTaskForDetail.priority,
+                teamName:
+                  selectedTaskForDetail.selectTeam ||
+                  selectedTaskForDetail.teamName ||
+                  "N/A",
+                teamId: selectedTaskForDetail.teamId || "",
+                assignees:
+                  selectedTaskForDetail.selectMember ||
+                  selectedTaskForDetail.assignees ||
+                  [],
+                assigneeId: selectedTaskForDetail.assigneeIds?.[0] || "",
+                dueDate: selectedTaskForDetail.dueDate || "Not set",
+                creatorName: selectedTaskForDetail.creatorName || "Unknown",
+                createdById: selectedTaskForDetail.createdById || "",
+                createdAt:
+                  selectedTaskForDetail.createdAt || new Date().toISOString(),
+              }
+            : null
+        }
+        open={isDetailOpen}
+        onClose={() => {
+          setIsDetailOpen(false);
+          setSelectedTaskForDetail(null);
+        }}
+        onEdit={handleEditFromDetail}
+      />
 
       <AlertDialog
         open={!!taskToDelete}

@@ -1,3 +1,4 @@
+// src/modules/hr-calendar/hr-calendar.service.ts
 import { db } from "../../db/drizzle";
 import {
   attendance,
@@ -5,6 +6,7 @@ import {
   leaves,
   workspaceMembers,
   teams,
+  leaveTypes,
 } from "../../db/schema";
 import { eq, and, gte, lte, count, inArray } from "drizzle-orm";
 
@@ -31,7 +33,7 @@ export class HRCalendarService {
       userPermissions.includes("user_management") ||
       userPermissions.includes("hr_calendar");
 
-    // ✅ HR Calendar: Only accessible by user_management OR hr_calendar
+    // HR Calendar: Only accessible by user_management OR hr_calendar
     if (!canManageAll) {
       return {
         attendance: [],
@@ -41,14 +43,14 @@ export class HRCalendarService {
       };
     }
 
-    // ✅ HR Calendar: Show ALL data (no team filtering for admins/HR)
+    // HR Calendar: Show ALL data (no team filtering for admins/HR)
     const attendanceEvents = await this.getDailyAttendanceSummary(
       workspaceId,
       userId,
       startDate,
       endDate,
-      true, // canManageAll = true (show all)
-      [], // empty teamMemberIds (no filtering)
+      true,
+      [],
     );
 
     const leaveEvents = await this.getLeaveEvents(
@@ -56,8 +58,8 @@ export class HRCalendarService {
       userId,
       startDate,
       endDate,
-      true, // canManageAll = true (show all)
-      [], // empty teamMemberIds (no filtering)
+      true,
+      [],
     );
 
     const holidayEvents = await this.getHolidayEvents(targetMonth, targetYear);
@@ -81,7 +83,7 @@ export class HRCalendarService {
     canManageAll: boolean,
     teamMemberIds: string[],
   ) {
-    // ✅ Build conditions with permission filtering
+    // Build conditions with permission filtering
     const memberConditions: any[] = [
       eq(workspaceMembers.workspaceId, workspaceId),
     ];
@@ -102,7 +104,7 @@ export class HRCalendarService {
 
     const total = totalMembers?.count || 0;
 
-    // ✅ Build attendance conditions with same permission filter
+    // Build attendance conditions with same permission filter
     const attendanceConditions: any[] = [
       eq(attendance.workspaceId, workspaceId),
       gte(attendance.date, startDate),
@@ -148,8 +150,6 @@ export class HRCalendarService {
 
       switch (record.status) {
         case "PRESENT":
-          stats.present++;
-          break;
         case "LATE":
           stats.present++;
           break;
@@ -225,7 +225,7 @@ export class HRCalendarService {
       lte(leaves.startDate, endDate),
     ];
 
-    // ✅ Filter leaves by user visibility
+    // Filter leaves by user visibility
     if (!canManageAll) {
       if (teamMemberIds.length > 0) {
         // Include team members + self
@@ -237,49 +237,55 @@ export class HRCalendarService {
       }
     }
 
+    // FIXED: Join with leaveTypes to get dynamic leave type name and color
     const approvedLeaves = await db
       .select({
         id: leaves.id,
         userId: leaves.userId,
         startDate: leaves.startDate,
         endDate: leaves.endDate,
-        type: leaves.type,
+        leaveTypeId: leaves.leaveTypeId, // FIXED: Changed from type
+        leaveTypeName: leaveTypes.name, // FIXED: Get name from leaveTypes
+        leaveTypeColor: leaveTypes.color, // FIXED: Get color from leaveTypes
         reason: leaves.reason,
         userName: users.name,
         teamName: teams.name,
       })
       .from(leaves)
       .leftJoin(users, eq(leaves.userId, users.id))
-      .leftJoin(teams, eq(users.teamId, teams.id))
+      .leftJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
+      .leftJoin(teams, eq(workspaceMembers.teamId, teams.id))
+      .leftJoin(leaveTypes, eq(leaves.leaveTypeId, leaveTypes.id)) // FIXED: Join with leaveTypes
       .where(and(...leaveConditions));
 
-    const leaveTypeColors: Record<string, string> = {
-      CASUAL: "#3b82f6",
-      SICK: "#8b5cf6",
-      EARNED: "#10b981",
-      UNPAID: "#6b7280",
-    };
+    return approvedLeaves.map((leave) => {
+      const leaveTypeName = leave.leaveTypeName || "Leave";
+      const leaveColor = leave.leaveTypeColor || "#3b82f6";
 
-    return approvedLeaves.map((leave) => ({
-      id: `leave-${leave.id}`,
-      title: `${leave.userName} - ${this.formatLeaveType(leave.type)}`,
-      start: new Date(leave.startDate).toISOString().split("T")[0],
-      end: new Date(
-        new Date(leave.endDate).setDate(new Date(leave.endDate).getDate() + 1),
-      )
-        .toISOString()
-        .split("T")[0],
-      backgroundColor: leaveTypeColors[leave.type] || "#3b82f6",
-      borderColor: leaveTypeColors[leave.type] || "#3b82f6",
-      extendedProps: {
-        type: "leave",
-        employee: leave.userName,
-        department: leave.teamName || "N/A",
-        leaveType: leave.type,
-        reason: leave.reason,
-        category: "leave",
-      },
-    }));
+      return {
+        id: `leave-${leave.id}`,
+        title: `${leave.userName} - ${leaveTypeName}`, // FIXED: Use dynamic name
+        start: new Date(leave.startDate).toISOString().split("T")[0],
+        end: new Date(
+          new Date(leave.endDate).setDate(
+            new Date(leave.endDate).getDate() + 1,
+          ),
+        )
+          .toISOString()
+          .split("T")[0],
+        backgroundColor: leaveColor, // FIXED: Use color from DB
+        borderColor: leaveColor, // FIXED: Use color from DB
+        extendedProps: {
+          type: "leave",
+          employee: leave.userName,
+          department: leave.teamName || "N/A",
+          leaveType: leaveTypeName, // FIXED: Use dynamic name
+          leaveTypeId: leave.leaveTypeId,
+          reason: leave.reason,
+          category: "leave",
+        },
+      };
+    });
   }
 
   /**
@@ -320,15 +326,5 @@ export class HRCalendarService {
     });
 
     return events;
-  }
-
-  private formatLeaveType(type: string): string {
-    const typeMap: Record<string, string> = {
-      CASUAL: "Casual Leave",
-      SICK: "Sick Leave",
-      EARNED: "Earned Leave",
-      UNPAID: "Unpaid Leave",
-    };
-    return typeMap[type] || type;
   }
 }

@@ -139,7 +139,7 @@ export default function InsightsSection({
           </p>
         </div>
         <Badge variant="outline" className="text-xs">
-          Updated just now
+          Coming soon
         </Badge>
       </div>
 

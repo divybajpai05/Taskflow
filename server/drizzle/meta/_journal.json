@@ -1,27 +1,5 @@
 {
   "version": "7",
   "dialect": "mysql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "5",
-      "when": 1776584721486,
-      "tag": "0000_petite_vampiro",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "5",
-      "when": 1776585583445,
-      "tag": "0001_daily_secret_warriors",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
-      "when": 1777114045561,
-      "tag": "0002_parallel_molly_hayes",
-      "breakpoints": true
-    }
-  ]
+  "entries": []
 }

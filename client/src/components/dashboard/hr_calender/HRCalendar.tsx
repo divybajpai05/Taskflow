@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import apiClient from "@/api/client";
 import HRCalendarLoader from "@/components/loaders/HRCalendarLoader";
+import { EventDetailDialog } from "./EventDetailDialog";
 
 interface AttendanceEvent {
   id: string;
@@ -84,6 +85,24 @@ const HRCalendar: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [events, setEvents] = useState<EventInput[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const [eventDialog, setEventDialog] = useState<{
+    type: "attendance" | "leave" | "holiday";
+    title: string;
+    date: string;
+    present?: number;
+    absent?: number;
+    onLeave?: number;
+    halfDay?: number;
+    total?: number;
+    attendancePercentage?: number;
+    employee?: string;
+    department?: string;
+    leaveType?: string;
+    reason?: string;
+    startDate?: string;
+    endDate?: string;
+  } | null>(null);
 
   // ✅ Fetch HR calendar events from API
   const fetchHREvents = useCallback(async () => {
@@ -242,37 +261,55 @@ const HRCalendar: React.FC = () => {
     );
   };
 
-  const handleEventClick = (clickInfo: EventClickArg) => {
-    const event = clickInfo.event;
-    const props = event.extendedProps as any;
+ const handleEventClick = (clickInfo: EventClickArg) => {
+   const event = clickInfo.event;
+   const props = event.extendedProps as any;
 
-    if (props?.type === "attendance") {
-      alert(
-        `📊 Daily Attendance - ${event.start?.toLocaleDateString()}\n\n` +
-          `Present : ${props.present}\n` +
-          `Absent   : ${props.absent}\n` +
-          `On Leave : ${props.onLeave}\n` +
-          `Half Day : ${props.halfDay}\n` +
-          `Total    : ${props.total}\n` +
-          `Rate     : ${props.attendancePercentage}%`,
-      );
-    } else if (props?.type === "leave") {
-      alert(
-        `🏖️ Leave Details\n\n` +
-          `Employee: ${props.employee}\n` +
-          `Department: ${props.department}\n` +
-          `Type: ${props.leaveType}\n` +
-          `Reason: ${props.reason || "N/A"}\n` +
-          `Dates: ${event.start?.toLocaleDateString()} - ${event.end?.toLocaleDateString() || event.start?.toLocaleDateString()}`,
-      );
-    } else if (props?.type === "holiday") {
-      alert(
-        `🎉 Holiday\n\n` +
-          `${event.title}\n` +
-          `Date: ${event.start?.toLocaleDateString()}`,
-      );
-    }
-  };
+   if (props?.type === "attendance") {
+     setEventDialog({
+       type: "attendance",
+       title: event.title,
+       date:
+         event.start?.toLocaleDateString("en-GB", {
+           weekday: "long",
+           day: "2-digit",
+           month: "long",
+           year: "numeric",
+         }) || "",
+       present: props.present,
+       absent: props.absent,
+       onLeave: props.onLeave,
+       halfDay: props.halfDay,
+       total: props.total,
+       attendancePercentage: props.attendancePercentage,
+     });
+   } else if (props?.type === "leave") {
+     setEventDialog({
+       type: "leave",
+       title: event.title,
+       date: `${event.start?.toLocaleDateString()} - ${event.end?.toLocaleDateString() || event.start?.toLocaleDateString()}`,
+       employee: props.employee,
+       department: props.department,
+       leaveType: props.leaveType,
+       reason: props.reason,
+       startDate: event.start?.toLocaleDateString("en-GB"),
+       endDate: event.end?.toLocaleDateString("en-GB"),
+     });
+   } else if (props?.type === "holiday") {
+     setEventDialog({
+       type: "holiday",
+       title: event.title,
+       date:
+         event.start?.toLocaleDateString("en-GB", {
+           weekday: "long",
+           day: "2-digit",
+           month: "long",
+           year: "numeric",
+         }) || "",
+     });
+   }
+ };
+
 
   // Filter events by category
   const filteredEvents =
@@ -631,6 +668,11 @@ const HRCalendar: React.FC = () => {
           </div>
         </div>
       </div>
+      <EventDetailDialog
+        open={!!eventDialog}
+        onClose={() => setEventDialog(null)}
+        eventData={eventDialog}
+      />
     </div>
   );
 };

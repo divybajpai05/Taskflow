@@ -616,14 +616,21 @@ export default function Settings() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Leave Request
+            Leave Management
           </CardTitle>
           <CardDescription>
-            Apply for vacation, sick leave, or other time off
+            View your leave balance and apply for time off
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <LeaveRequest />
+          <Button
+            className="cursor-pointer gap-2"
+            onClick={() => navigate("/dashboard/leaves")}
+            variant={"secondary"}
+          >
+            <FileText className="h-4 w-4" />
+            Apply leave
+          </Button>
         </CardContent>
       </Card>
 

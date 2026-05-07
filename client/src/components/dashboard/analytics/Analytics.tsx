@@ -24,7 +24,7 @@ import InsightsSection from "./components/InsightsSection";
 
 export default function AnalyticsReport() {
   const [dateRange, setDateRange] = useState({
-    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    from: new Date(),
     to: new Date(),
   });
 
@@ -75,7 +75,7 @@ export default function AnalyticsReport() {
   };
 
   return (
-    <div className="flex-1 space-y-6 p-6 md:p-8">
+    <div className="flex-1 space-y-6 md:p-6 md:p-8">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -200,7 +200,7 @@ export default function AnalyticsReport() {
       <KPICards {...filterProps} />
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="md:grid w-full md:grid-cols-4">
           <TabsTrigger className="cursor-pointer" value="overview">
             Overview
           </TabsTrigger>

@@ -12,10 +12,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2 } from "lucide-react";
+import { format } from "date-fns";
 import apiClient from "@/api/client";
 
 interface EmployeeListsProps {
+  dateRange: { from: Date; to: Date };
   selectedDepartment: string;
+  selectedMember: string;
   refreshKey?: number;
 }
 
@@ -34,10 +37,13 @@ interface EmployeeData {
   absent: Employee[];
   onLeave: Employee[];
   halfDay: Employee[];
+  notMarked: Employee[];
 }
 
 const EmployeeLists: React.FC<EmployeeListsProps> = ({
+  dateRange,
   selectedDepartment,
+  selectedMember,
   refreshKey,
 }) => {
   const [employeeData, setEmployeeData] = useState<EmployeeData | null>(null);
@@ -49,19 +55,22 @@ const EmployeeLists: React.FC<EmployeeListsProps> = ({
       const params = new URLSearchParams();
       if (selectedDepartment !== "all")
         params.append("department", selectedDepartment);
+      if (selectedMember !== "all") params.append("memberId", selectedMember);
+      if (dateRange.from)
+        params.append("dateFrom", format(dateRange.from, "yyyy-MM-dd"));
+      if (dateRange.to)
+        params.append("dateTo", format(dateRange.to, "yyyy-MM-dd"));
 
       const response = await apiClient.get(
         `/hr-dashboard/employees?${params.toString()}`,
       );
-      if (response.data.success) {
-        setEmployeeData(response.data.data);
-      }
+      if (response.data.success) setEmployeeData(response.data.data);
     } catch (error) {
       console.error("Failed to fetch employee data:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDepartment]);
+  }, [selectedDepartment, selectedMember, dateRange]);
 
   useEffect(() => {
     fetchEmployees();
@@ -138,13 +147,12 @@ const EmployeeLists: React.FC<EmployeeListsProps> = ({
     </Card>
   );
 
-  if (isLoading) {
+  if (isLoading)
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
-  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-1">
@@ -167,6 +175,11 @@ const EmployeeLists: React.FC<EmployeeListsProps> = ({
         title="Half Day Employees"
         employees={employeeData?.halfDay || []}
         badgeColor="bg-yellow-100 text-yellow-700"
+      />
+      <EmployeeTable
+        title="Not Marked"
+        employees={employeeData?.notMarked || []}
+        badgeColor="bg-gray-100 text-gray-700"
       />
     </div>
   );

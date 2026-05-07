@@ -82,4 +82,28 @@ export class LeaveController {
       next(error);
     }
   }
+
+  // Add these methods to your existing LeaveController class
+
+  async getBalance(req: Request, res: Response, next: NextFunction) {
+    try {
+      const workspaceId = req.user!.workspaceId;
+      const userId = req.user!.id;
+      const balance = await leaveService.getLeaveBalance(workspaceId, userId);
+      res.json({ success: true, data: balance });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
+  async getMyLeaves(req: Request, res: Response, next: NextFunction) {
+    try {
+      const workspaceId = req.user!.workspaceId;
+      const userId = req.user!.id;
+      const myLeaves = await leaveService.getMyLeaves(workspaceId, userId);
+      res.json({ success: true, data: myLeaves });
+    } catch (error: any) {
+      next(error);
+    }
+  }
 }

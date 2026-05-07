@@ -147,6 +147,13 @@ const general = [
   {
     title: "Settings",
     url: "settings",
+    permission: "settings",
+  },
+
+  {
+    title: "Apply & Manage leaves",
+    url: "leaves",
+    permission: "settings",
   },
 ];
 

@@ -39,7 +39,7 @@ export class TeamService {
           : eq(teams.workspaceId, workspaceId),
       );
 
-    // Get members for each team
+    // FIXED: Get members from workspace_members instead of users.teamId
     const teamsWithMembers = await Promise.all(
       teamList.map(async (team) => {
         const members = await db
@@ -49,9 +49,13 @@ export class TeamService {
             email: users.email,
             avatar: users.avatar,
           })
-          .from(users)
+          .from(workspaceMembers)
+          .innerJoin(users, eq(workspaceMembers.userId, users.id))
           .where(
-            and(eq(users.teamId, team.id), eq(users.workspaceId, workspaceId)),
+            and(
+              eq(workspaceMembers.teamId, team.id),
+              eq(workspaceMembers.workspaceId, workspaceId),
+            ),
           );
 
         return {
@@ -89,6 +93,7 @@ export class TeamService {
 
     if (!team) throw new Error("Team not found");
 
+    // FIXED: Get members from workspace_members
     const members = await db
       .select({
         id: users.id,
@@ -96,8 +101,9 @@ export class TeamService {
         email: users.email,
         avatar: users.avatar,
       })
-      .from(users)
-      .where(eq(users.teamId, team.id));
+      .from(workspaceMembers)
+      .innerJoin(users, eq(workspaceMembers.userId, users.id))
+      .where(eq(workspaceMembers.teamId, team.id));
 
     return {
       ...team,
@@ -123,13 +129,13 @@ export class TeamService {
     const { name, description, color } = input;
 
     // Check if team name already exists in workspace
-    const existing = await db
+    const [existing] = await db
       .select()
       .from(teams)
       .where(and(eq(teams.name, name), eq(teams.workspaceId, workspaceId)))
       .limit(1);
 
-    if (existing.length > 0) {
+    if (existing) {
       throw new Error("A team with this name already exists in this workspace");
     }
 
@@ -181,11 +187,11 @@ export class TeamService {
 
     if (!team) throw new Error("Team not found");
 
-    // Remove team from users
+    // FIXED: Remove team from workspace_members (not users table)
     await db
-      .update(users)
-      .set({ teamId: null, team: null })
-      .where(eq(users.teamId, teamId));
+      .update(workspaceMembers)
+      .set({ teamId: null })
+      .where(eq(workspaceMembers.teamId, teamId));
 
     // Delete the team
     await db.delete(teams).where(eq(teams.id, teamId));
@@ -213,10 +219,39 @@ export class TeamService {
 
     if (!user) throw new Error("User not found");
 
-    await db
-      .update(users)
-      .set({ teamId: team.id, team: team.name })
-      .where(eq(users.id, userId));
+    // FIXED: Update workspace_members instead of users table
+    // Check if user is already in workspace_members for this workspace
+    const [existingMember] = await db
+      .select()
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.userId, userId),
+          eq(workspaceMembers.workspaceId, team.workspaceId),
+        ),
+      )
+      .limit(1);
+
+    if (existingMember) {
+      await db
+        .update(workspaceMembers)
+        .set({ teamId: team.id })
+        .where(
+          and(
+            eq(workspaceMembers.userId, userId),
+            eq(workspaceMembers.workspaceId, team.workspaceId),
+          ),
+        );
+    } else {
+      // Add to workspace_members with this team
+      await db.insert(workspaceMembers).values({
+        id: uuidv4(),
+        userId: userId,
+        workspaceId: team.workspaceId,
+        roleId: "", // You may want to assign a default role
+        teamId: team.id,
+      });
+    }
 
     return this.getTeamById(teamId);
   }
@@ -225,16 +260,22 @@ export class TeamService {
    * Remove a member from a team
    */
   async removeTeamMember(teamId: string, userId: string) {
+    // FIXED: Update workspace_members instead of users table
     await db
-      .update(users)
-      .set({ teamId: null, team: null })
-      .where(and(eq(users.id, userId), eq(users.teamId, teamId)));
+      .update(workspaceMembers)
+      .set({ teamId: null })
+      .where(
+        and(
+          eq(workspaceMembers.userId, userId),
+          eq(workspaceMembers.teamId, teamId),
+        ),
+      );
 
     return this.getTeamById(teamId);
   }
 
   /**
-   * Get available users for a team (users not in any team)
+   * Get available users for a team (users in workspace, optionally not in any team)
    */
   async getAvailableUsers(workspaceId: string) {
     return db
@@ -244,8 +285,8 @@ export class TeamService {
         email: users.email,
         avatar: users.avatar,
       })
-      .from(users)
-      .innerJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
+      .from(workspaceMembers)
+      .innerJoin(users, eq(workspaceMembers.userId, users.id))
       .where(
         and(
           eq(workspaceMembers.workspaceId, workspaceId),

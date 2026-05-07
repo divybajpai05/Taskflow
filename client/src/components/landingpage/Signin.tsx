@@ -102,21 +102,48 @@ export default function Signin({
     try {
       const response = await apiClient.post("/auth/login", formData);
 
-      console.log("🔵 Login response:", response.data);
+      console.log("🔵 Full login response:", response.data);
 
       if (response.data.success) {
         toast.dismiss(loadingToastId);
 
+        // FIXED: Access the nested data object
         const { user, accessToken } = response.data.data;
 
-        // ✅ Store in Zustand
+        console.log("🔵 User from response:", user);
+        console.log("🔵 Role:", user?.role);
+        console.log(
+          "🔵 Workspace:",
+          user?.activeWorkspaceId,
+          user?.activeWorkspaceName,
+        );
+        console.log("🔵 AccessToken:", accessToken ? "present" : "MISSING!");
+
+        if (!user) {
+          console.error("🔴 User is undefined in response!");
+          toast.error("Login failed - Invalid response from server");
+          return;
+        }
+
+        // Validate user data before storing
+        if (!user.role) {
+          console.warn("⚠️ Warning: User role is empty!");
+        }
+        if (!user.activeWorkspaceId) {
+          console.warn("⚠️ Warning: Workspace ID is empty!");
+        }
+
+        // Store in Zustand
         setAuth(user, accessToken);
 
-        console.log("🔵 Store after setAuth:", useAuthStore.getState());
-
+        console.log("🔵 Store after setAuth:", {
+          user: useAuthStore.getState().user?.name,
+          role: useAuthStore.getState().user?.role,
+          isAuthenticated: useAuthStore.getState().isAuthenticated,
+        });
 
         toast.success("🎉 Welcome back!", {
-          description: `Signed in as ${response.data.data.user.name}`,
+          description: `Signed in as ${user.name}`,
           duration: 3000,
         });
 
@@ -145,7 +172,6 @@ export default function Signin({
       const errorMessage =
         responseData?.error || "Login failed. Please try again.";
 
-      // Handle specific error cases
       if (errorMessage.includes("verify your email")) {
         setErrors({
           general:
@@ -160,9 +186,7 @@ export default function Signin({
           },
         });
       } else if (errorMessage.includes("Invalid email or password")) {
-        setErrors({
-          general: "Invalid email or password",
-        });
+        setErrors({ general: "Invalid email or password" });
         toast.error("Login failed", {
           description: "Invalid email or password",
         });
@@ -175,9 +199,7 @@ export default function Signin({
         });
       } else {
         setErrors({ general: errorMessage });
-        toast.error("Login failed", {
-          description: errorMessage,
-        });
+        toast.error("Login failed", { description: errorMessage });
       }
     } finally {
       setIsLoading(false);
@@ -272,16 +294,6 @@ export default function Signin({
 
           <DialogFooter>
             <div className="flex flex-col w-full gap-2">
-              <DialogClose asChild>
-                <Button
-                  variant="outline"
-                  className="cursor-pointer"
-                  type="button"
-                  disabled={isLoading}
-                >
-                  Cancel
-                </Button>
-              </DialogClose>
               <Button
                 type="submit"
                 className="cursor-pointer"
@@ -296,6 +308,16 @@ export default function Signin({
                   "Sign in"
                 )}
               </Button>
+              <DialogClose asChild>
+                <Button
+                  variant="outline"
+                  className="cursor-pointer"
+                  type="button"
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+              </DialogClose>
             </div>
           </DialogFooter>
 

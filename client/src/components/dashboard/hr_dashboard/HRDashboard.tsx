@@ -20,19 +20,35 @@ import EmployeeLists from "./components/EmployeeLists";
 import apiClient from "@/api/client";
 
 export default function HRDashboard() {
+  
   const [dateRange, setDateRange] = useState({
-    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    from: new Date(),
     to: new Date(),
   });
 
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
+  const [selectedMember, setSelectedMember] = useState<string>("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
+  // ✅ Fetch members for filter
+  const [members, setMembers] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        const response = await apiClient.get("/users/workspace-members");
+        if (response.data.success) setMembers(response.data.data || []);
+      } catch (error) {
+        console.error("Failed to fetch members:", error);
+      }
+    };
+    fetchMembers();
+  }, []);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      // Trigger re-fetch in child components
       setLastUpdated(new Date());
       toast.success("Dashboard refreshed");
     } finally {
@@ -45,14 +61,14 @@ export default function HRDashboard() {
       const params = new URLSearchParams();
       if (selectedDepartment !== "all")
         params.append("department", selectedDepartment);
+      if (selectedMember !== "all") params.append("memberId", selectedMember);
+      params.append("dateFrom", format(dateRange.from, "yyyy-MM-dd"));
+      params.append("dateTo", format(dateRange.to, "yyyy-MM-dd"));
 
       const response = await apiClient.get(
         `/hr-dashboard/export?${params.toString()}`,
-        {
-          responseType: "blob",
-        },
+        { responseType: "blob" },
       );
-
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const a = document.createElement("a");
       a.href = url;
@@ -103,6 +119,21 @@ export default function HRDashboard() {
             />
           </div>
 
+          {/* ✅ Member Filter */}
+          <Select value={selectedMember} onValueChange={setSelectedMember}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="All Members" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Members</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           {/* Department Filter */}
           <Select
             value={selectedDepartment}
@@ -129,13 +160,12 @@ export default function HRDashboard() {
           >
             <RefreshCw
               className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-            />
+            />{" "}
             Refresh
           </Button>
 
           <Button onClick={handleExport} className="gap-2">
-            <Download className="h-4 w-4" />
-            Export Report
+            <Download className="h-4 w-4" /> Export Report
           </Button>
         </div>
       </div>
@@ -152,6 +182,7 @@ export default function HRDashboard() {
       <HRKPICards
         dateRange={dateRange}
         selectedDepartment={selectedDepartment}
+        selectedMember={selectedMember}
         refreshKey={lastUpdated.getTime()}
       />
 
@@ -159,16 +190,19 @@ export default function HRDashboard() {
       <HRCharts
         dateRange={dateRange}
         selectedDepartment={selectedDepartment}
+        selectedMember={selectedMember}
         refreshKey={lastUpdated.getTime()}
       />
 
-      {/* Employee Lists */}
+      {/* ✅ Employee Lists - Now receives all filters */}
       <div className="space-y-6">
         <h2 className="text-2xl font-semibold tracking-tight">
           Employee Lists
         </h2>
         <EmployeeLists
+          dateRange={dateRange}
           selectedDepartment={selectedDepartment}
+          selectedMember={selectedMember}
           refreshKey={lastUpdated.getTime()}
         />
       </div>
