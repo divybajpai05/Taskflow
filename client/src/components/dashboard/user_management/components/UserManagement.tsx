@@ -585,7 +585,10 @@ export const UserManagement: React.FC = () => {
                               className="cursor-pointer"
                               variant="ghost"
                               size="icon"
-                              onClick={() => openEditDialog(user)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditDialog(user);
+                              }}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -593,7 +596,10 @@ export const UserManagement: React.FC = () => {
                               variant="ghost"
                               size="icon"
                               className="text-destructive cursor-pointer"
-                              onClick={() => setDeletingUser(user)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeletingUser(user);
+                              }}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

@@ -5,13 +5,23 @@ import { TeamService } from "./team.service";
 const teamService = new TeamService();
 
 export class TeamController {
+  
   async getTeams(req: Request, res: Response, next: NextFunction) {
     try {
       const workspaceId = req.user!.workspaceId;
-      const search = req.query.search as string;
-      const teams = await teamService.getWorkspaceTeams(workspaceId, search);
+      const userId = req.user!.id;
+      const userPermissions = req.user!.permissions || [];
+      const { search } = req.query;
+
+      const teams = await teamService.getWorkspaceTeams(
+        workspaceId,
+        userId,
+        userPermissions,
+        search as string,
+      );
+
       res.json({ success: true, data: teams });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }

@@ -20,7 +20,44 @@ export class TeamService {
   /**
    * Get all teams in a workspace with member counts
    */
-  async getWorkspaceTeams(workspaceId: string, search?: string) {
+  async getWorkspaceTeams(
+    workspaceId: string,
+    userId: string,
+    userPermissions: string[],
+    search?: string,
+  ) {
+    const canSeeAllTeams =
+      userPermissions.includes("user_management") ||
+      userPermissions.includes("hr_dashboard");
+
+    // ✅ Build conditions array instead of reassigning query
+    const conditions: any[] = [eq(teams.workspaceId, workspaceId)];
+
+    if (search) {
+      conditions.push(like(teams.name, `%${search}%`));
+    }
+
+    if (!canSeeAllTeams) {
+      // Only user's own team
+      const [userMember] = await db
+        .select({ teamId: workspaceMembers.teamId })
+        .from(workspaceMembers)
+        .where(
+          and(
+            eq(workspaceMembers.userId, userId),
+            eq(workspaceMembers.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (!userMember?.teamId) {
+        return [];
+      }
+
+      conditions.push(eq(teams.id, userMember.teamId));
+    }
+
+    // ✅ Single query with all conditions
     const teamList = await db
       .select({
         id: teams.id,
@@ -30,16 +67,9 @@ export class TeamService {
         workspaceId: teams.workspaceId,
       })
       .from(teams)
-      .where(
-        search
-          ? and(
-              eq(teams.workspaceId, workspaceId),
-              like(teams.name, `%${search}%`),
-            )
-          : eq(teams.workspaceId, workspaceId),
-      );
+      .where(and(...conditions));
 
-    // FIXED: Get members from workspace_members instead of users.teamId
+    // Get members for each team
     const teamsWithMembers = await Promise.all(
       teamList.map(async (team) => {
         const members = await db

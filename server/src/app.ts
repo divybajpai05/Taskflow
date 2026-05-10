@@ -19,28 +19,28 @@ import hrCalendarRoutes from "./modules/hr-calendar/hr-calendar.routes";
 import hrDashboardRoutes from "./modules/hr-dashboard/hr-dashboard.routes";
 import analyticsRoutes from "./modules/analytics/analytics.routes";
 import leaveTypesRoutes from "./modules/leave-types/leave-types.routes";
-
-
-import { db } from "./db/drizzle";
-import { teams } from "./db/schema";
-import { eq } from "drizzle-orm";
 import cookieParser from "cookie-parser";
-
+import rateLimit from "express-rate-limit";
+import { getClientIp } from "./utils/getIp";
 
 const app = express();
 
+// ==================== TRUST PROXY ====================
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+} else {
+  app.set("trust proxy", "loopback");
+}
+
+// ==================== CORS - MUST BE FIRST ====================
 const allowedOrigins =
   process.env.NODE_ENV === "production"
     ? [process.env.FRONTEND_URL!]
     : ["http://localhost:5173"];
 
-// CORS options
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    if (!origin) {
-      return callback(null, true);
-    }
-
+    if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -58,17 +58,29 @@ const corsOptions: cors.CorsOptions = {
     "Origin",
     "x-workspace-id",
   ],
-  exposedHeaders: ["X-Total-Count", "Content-Range"], // optional
+  exposedHeaders: ["X-Total-Count", "Content-Range"],
   optionsSuccessStatus: 200,
 };
 
+app.use(cors(corsOptions));
+// ==================== BODY PARSERS ====================
 app.use(cookieParser());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
-// Apply CORS middleware
-app.use(cors(corsOptions));
 
-// Routes
+// ==================== RATE LIMITER (after CORS) ====================
+const limiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 100,
+  keyGenerator: (req) => getClientIp(req),
+  validate: {
+    trustProxy: false, // ✅ Disable trust proxy validation
+  },
+});
+
+app.use(limiter);
+
+// ==================== ROUTES ====================
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/roles", roleRoutes);
@@ -87,17 +99,16 @@ app.use("/api/hr-dashboard", hrDashboardRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/leave-types", leaveTypesRoutes);
 
-
 // Health check
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Error handler
-app.use(errorHandler);
-
 app.get("/", (req, res) => {
   res.send("Working");
 });
+
+// Error handler (must be last)
+app.use(errorHandler);
 
 export default app;

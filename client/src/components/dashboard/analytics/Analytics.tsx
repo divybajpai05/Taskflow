@@ -21,10 +21,11 @@ import OverviewCharts from "./components/OverviewCharts";
 import TaskDetailsTable from "./components/TaskDetailsTable";
 import TeamPerformance from "./components/TeamPerformance";
 import InsightsSection from "./components/InsightsSection";
+import ExportPdfService from "@/services/exportPdf.service";
 
 export default function AnalyticsReport() {
   const [dateRange, setDateRange] = useState({
-    from: new Date(),
+    from: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000),
     to: new Date(),
   });
 
@@ -72,6 +73,122 @@ export default function AnalyticsReport() {
     selectedStatus,
     selectedPriority,
     refreshKey: lastUpdated.getTime(),
+  };
+
+  const handleExportPDF = async () => {
+    const loadingToast = toast.loading("Generating PDF report...");
+
+    try {
+      const { default: ExportPdfService } =
+        await import("@/services/exportPdf.service");
+      const exporter = new ExportPdfService();
+
+      // Build filter params
+      const getFilterParams = () => {
+        const params = new URLSearchParams();
+        if (dateRange.from)
+          params.append("dateFrom", format(dateRange.from, "yyyy-MM-dd"));
+        if (dateRange.to)
+          params.append("dateTo", format(dateRange.to, "yyyy-MM-dd"));
+        if (selectedMember !== "all") params.append("memberId", selectedMember);
+        if (selectedTeam !== "all") params.append("teamId", selectedTeam);
+        if (selectedStatus !== "all") params.append("status", selectedStatus);
+        if (selectedPriority !== "all")
+          params.append("priority", selectedPriority);
+        return params.toString();
+      };
+
+      const filterParams = getFilterParams();
+
+      // Fetch all data using CORRECT API routes
+      const [
+        kpiRes,
+        chartsRes,
+        taskRes,
+        performanceRes, // ✅ /analytics/team
+        workloadRes, // ✅ /analytics/team-workload
+        completionRes, // ✅ /analytics/team-completion-rate
+        attendanceRes, // ✅ /analytics/attendance-trend
+        employeeDistRes, // ✅ /analytics/employee-distribution
+        leaveTrendsRes, // ✅ /analytics/leave-trends
+      ] = await Promise.all([
+        apiClient.get(`/analytics/kpi?${filterParams}`),
+        apiClient.get(`/analytics/charts?${filterParams}`),
+        apiClient.get(`/analytics/tasks?${filterParams}`),
+        apiClient.get(`/analytics/team?${filterParams}`),
+        apiClient.get(`/analytics/team-workload?${filterParams}`),
+        apiClient.get(`/analytics/team-completion-rate?${filterParams}`),
+        apiClient.get(`/analytics/attendance-trend?${filterParams}`),
+        apiClient.get(`/analytics/employee-distribution`),
+        apiClient.get(`/analytics/leave-trends?${filterParams}`),
+      ]);
+
+      // Add report header
+      exporter.addReportHeader(
+        format(dateRange.from, "dd/MM/yyyy"),
+        format(dateRange.to, "dd/MM/yyyy"),
+      );
+
+      // Section 1: KPI Summary
+      if (kpiRes.data.success) {
+        exporter.addKPISection(kpiRes.data.data);
+      }
+
+      // Section 2: Status Distribution
+      if (chartsRes.data.success && chartsRes.data.data.statusDistribution) {
+        exporter.addStatusDistribution(chartsRes.data.data.statusDistribution);
+      }
+
+      // Section 3: Priority Breakdown
+      if (chartsRes.data.success && chartsRes.data.data.priorityBreakdown) {
+        exporter.addPriorityBreakdown(chartsRes.data.data.priorityBreakdown);
+      }
+
+      // Section 4: Task Details
+      if (taskRes.data.success) {
+        exporter.addTaskDetailsSection(taskRes.data.data);
+      }
+
+      // Section 5: Team Performance
+      if (performanceRes.data.success) {
+        exporter.addTeamPerformanceSection(performanceRes.data.data);
+      }
+
+      // Section 6: Team Workload
+      if (workloadRes.data.success) {
+        exporter.addTeamWorkloadSection(workloadRes.data.data);
+      }
+
+      // Section 7: Attendance Trend
+      if (attendanceRes.data.success) {
+        exporter.addAttendanceSection(attendanceRes.data.data);
+      }
+
+      // Section 8: Employee Distribution
+      if (employeeDistRes.data.success) {
+        exporter.addEmployeeDistributionSection(employeeDistRes.data.data);
+      }
+
+      // Section 9: Leave Trends
+      if (leaveTrendsRes.data.success) {
+        const leaveRes = leaveTrendsRes.data.data;
+        exporter.addLeaveTrendsSection(
+          leaveRes.data || [],
+          leaveRes.leaveTypeKeys || [],
+          leaveRes.leaveTypeLabels || {},
+        );
+      }
+
+      // Save PDF
+      exporter.save();
+
+      toast.dismiss(loadingToast);
+      toast.success("PDF report downloaded successfully!");
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      console.error("PDF export failed:", error);
+      toast.error("Failed to generate PDF report. Please try again.");
+    }
   };
 
   return (
@@ -182,7 +299,7 @@ export default function AnalyticsReport() {
             />{" "}
             Refresh
           </Button>
-          <Button onClick={handleExport} className="gap-2">
+          <Button onClick={handleExportPDF} className="gap-2 cursor-pointer">
             <Download className="h-4 w-4" /> Export Report
           </Button>
         </div>

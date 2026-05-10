@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from "express";
 import { AuthService } from "./auth.service";
 import { RegisterInput, LoginInput } from "./auth.types";
 import { config } from "../../config";
+import { getClientIp } from "../../utils/getIp";
 
 const authService = new AuthService();
 
@@ -65,7 +66,9 @@ export class AuthController {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const input: LoginInput = req.body;
-      const ipAddress = req.ip || req.socket.remoteAddress;
+      // const ipAddress = req.ip || req.socket.remoteAddress;
+      const ipAddress = getClientIp(req);
+      console.log("Ip adress----------------->",ipAddress);
 
       const result = await authService.login(input, ipAddress);
 

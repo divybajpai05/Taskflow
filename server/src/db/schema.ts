@@ -224,7 +224,7 @@ export const activityLogs = mysqlTable(
     workspaceId: varchar("workspace_id", { length: 36 }).references(
       () => workspaces.id,
     ),
-    action: varchar("action", { length: 100 }).notNull(),
+    action: varchar("action", { length: 500 }).notNull(),
     entityType: varchar("entity_type", { length: 50 }),
     entityId: varchar("entity_id", { length: 36 }),
     details: json("details"),

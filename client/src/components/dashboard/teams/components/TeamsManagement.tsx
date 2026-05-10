@@ -40,9 +40,11 @@ import {
   Search,
   X,
   Loader2,
+  Lock,
 } from "lucide-react";
 import apiClient from "@/api/client";
 import { toast } from "sonner";
+import { useAuthStore } from "@/stores";
 
 // ─────────────────────────────────────────────────────────────
 // TYPES
@@ -68,6 +70,14 @@ interface Team {
 // COMPONENT
 // ─────────────────────────────────────────────────────────────
 export const TeamsManagement: React.FC = () => {
+  // ==================== AUTH ====================
+  const { user } = useAuthStore();
+  const userPermissions = user?.permissions || [];
+  const isAdmin = userPermissions.includes("user_management");
+  const isHR = userPermissions.includes("hr_dashboard");
+  const canManageAllTeams = isAdmin || isHR;
+  const isTeamManager = userPermissions.includes("team_management");
+
   // ==================== STATE ====================
   const [teams, setTeams] = useState<Team[]>([]);
   const [availableUsers, setAvailableUsers] = useState<TeamMember[]>([]);
@@ -132,7 +142,21 @@ export const TeamsManagement: React.FC = () => {
     team.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  console.log(filteredTeams)
+  // ✅ Check if user can edit/delete a specific team
+  const canEditTeam = (team: Team) => {
+    return (
+      canManageAllTeams ||
+      (isTeamManager && team.members?.some((m) => m.id === user?.id))
+    );
+  };
+
+  const canDeleteTeam = (team: Team) => {
+    return canManageAllTeams;
+  };
+
+  const canManageMembers = (team: Team) => {
+    return canManageAllTeams || isTeamManager;
+  };
 
   // ==================== FORM HELPERS ====================
   const resetForm = () => {
@@ -241,12 +265,9 @@ export const TeamsManagement: React.FC = () => {
 
       toast.success(`${user.name} added to team!`);
 
-      // ✅ Fetch fresh teams list
       const teamsResponse = await apiClient.get("/teams");
       if (teamsResponse.data.success) {
         setTeams(teamsResponse.data.data);
-
-        // ✅ Update the open dialog with fresh data
         const updatedTeam = teamsResponse.data.data.find(
           (t: Team) => t.id === teamForMembers.id,
         );
@@ -267,12 +288,9 @@ export const TeamsManagement: React.FC = () => {
 
       toast.success("Member removed from team!");
 
-      // ✅ Fetch fresh teams list
       const teamsResponse = await apiClient.get("/teams");
       if (teamsResponse.data.success) {
         setTeams(teamsResponse.data.data);
-
-        // ✅ Update the open dialog with fresh data
         const updatedTeam = teamsResponse.data.data.find(
           (t: Team) => t.id === teamForMembers.id,
         );
@@ -295,17 +313,22 @@ export const TeamsManagement: React.FC = () => {
             Teams management
           </h1>
           <p className="text-muted-foreground mt-1">
-            Create teams, manage members and organize your workforce
+            {canManageAllTeams
+              ? "Create teams, manage members and organize your workforce"
+              : "View your team and manage members"}
           </p>
         </div>
-        <Button
-          onClick={() => setIsCreateDialogOpen(true)}
-          size="lg"
-          className="cursor-pointer"
-        >
-          <Plus className="mr-2 h-5 w-5" />
-          Create New Team
-        </Button>
+        {/* ✅ Only Admin/HR can create teams */}
+        {canManageAllTeams && (
+          <Button
+            onClick={() => setIsCreateDialogOpen(true)}
+            size="lg"
+            className="cursor-pointer"
+          >
+            <Plus className="mr-2 h-5 w-5" />
+            Create New Team
+          </Button>
+        )}
       </div>
 
       {/* Search */}
@@ -333,7 +356,9 @@ export const TeamsManagement: React.FC = () => {
           <p className="text-muted-foreground">
             {searchTerm
               ? "Try a different search term"
-              : "Create your first team to get started"}
+              : canManageAllTeams
+                ? "Create your first team to get started"
+                : "You haven't been assigned to a team yet"}
           </p>
         </div>
       ) : (
@@ -376,43 +401,61 @@ export const TeamsManagement: React.FC = () => {
                     </div>
                   )}
 
+                  {/* ✅ Action buttons - show based on permissions */}
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTeamForMembers(team);
-                      }}
-                    >
-                      <UserPlus className="mr-2 h-4 w-4" />
-                      Manage Members
-                    </Button>
+                    {/* Manage Members - Admin, HR, or Team Manager */}
+                    {canManageMembers(team) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTeamForMembers(team);
+                        }}
+                      >
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Manage Members
+                      </Button>
+                    )}
 
-                    <Button
-                      className="cursor-pointer"
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenEdit(team);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    {/* Edit - Admin, HR, or Team Manager */}
+                    {canEditTeam(team) && (
+                      <Button
+                        className="cursor-pointer"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEdit(team);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeletingTeam(team);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {/* Delete - Only Admin/HR */}
+                    {canDeleteTeam(team) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingTeam(team);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+
+                    {/* No permissions indicator */}
+                    {!canManageMembers(team) && !canEditTeam(team) && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Lock className="h-3 w-3" />
+                        View only
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -595,68 +638,73 @@ export const TeamsManagement: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive cursor-pointer"
-                          onClick={() => handleRemoveMember(member.id)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                        {/* ✅ Only Admin/HR or Team Manager can remove */}
+                        {canManageMembers(teamForMembers!) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive cursor-pointer"
+                            onClick={() => handleRemoveMember(member.id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     ))
                   )}
                 </div>
               </div>
 
-              {/* Add Members */}
-              <div>
-                <h3 className="font-medium mb-3 text-sm uppercase tracking-widest">
-                  Add Members
-                </h3>
-                <div className="relative mb-4">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search employees..."
-                    value={memberSearchTerm}
-                    onChange={(e) => setMemberSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+              {/* Add Members - Only if can manage */}
+              {canManageMembers(teamForMembers!) && (
+                <div>
+                  <h3 className="font-medium mb-3 text-sm uppercase tracking-widest">
+                    Add Members
+                  </h3>
+                  <div className="relative mb-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search employees..."
+                      value={memberSearchTerm}
+                      onChange={(e) => setMemberSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
 
-                <div className="max-h-64 overflow-auto space-y-2 pr-2">
-                  {filteredAvailableUsers.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-6 text-center">
-                      No more employees available to add
-                    </p>
-                  ) : (
-                    filteredAvailableUsers.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center gap-3 p-3 hover:bg-accent rounded-lg cursor-pointer transition-colors"
-                      >
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold">
-                          {user.initials}
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-medium">{user.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {user.email}
-                          </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="cursor-pointer"
-                          onClick={() => handleAddMember(user)}
+                  <div className="max-h-64 overflow-auto space-y-2 pr-2">
+                    {filteredAvailableUsers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-6 text-center">
+                        No more employees available to add
+                      </p>
+                    ) : (
+                      filteredAvailableUsers.map((user) => (
+                        <div
+                          key={user.id}
+                          className="flex items-center gap-3 p-3 hover:bg-accent rounded-lg cursor-pointer transition-colors"
                         >
-                          <UserPlus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))
-                  )}
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold">
+                            {user.initials}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium">{user.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {user.email}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="cursor-pointer"
+                            onClick={() => handleAddMember(user)}
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
             <ScrollBar orientation="vertical" />
           </ScrollArea>

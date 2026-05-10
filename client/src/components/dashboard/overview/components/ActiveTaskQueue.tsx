@@ -125,7 +125,7 @@ export function ActiveTaskQueue() {
                 >
                   <TableCell></TableCell>
                   <TableCell>
-                    <div className="font-medium">{task.name}</div>
+                    <div className="font-medium max-w-80 line-clamp-3">{task.name}</div>
                     <div className="text-xs text-muted-foreground">
                       Assigned: {task.assignedTeam}
                     </div>

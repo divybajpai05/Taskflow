@@ -227,20 +227,8 @@ export default function App() {
           {/* HR Management Section                    */}
           {/* ✅ requireAll={false} - Only needs ONE HR permission */}
           {/* ========================================= */}
-          <Route
-            element={
-              <ProtectedRoute
-                requiredPermissions={[
-                  "hr_dashboard",
-                  "attendance",
-                  "leave_management",
-                  "hr_calendar",
-                  "email_center",
-                ]}
-                requireAll={false}
-              />
-            }
-          >
+
+          <Route element={<ProtectedRoute requiredPermission="hr_dashboard" />}>
             <Route
               path="hr-dashboard"
               element={
@@ -249,6 +237,9 @@ export default function App() {
                 </Suspense>
               }
             />
+          </Route>
+
+          <Route element={<ProtectedRoute requiredPermission="attendance" />}>
             <Route
               path="attendance-management"
               element={
@@ -257,6 +248,11 @@ export default function App() {
                 </Suspense>
               }
             />
+          </Route>
+
+          <Route
+            element={<ProtectedRoute requiredPermission="leave_management" />}
+          >
             <Route
               path="leave-management"
               element={
@@ -265,6 +261,9 @@ export default function App() {
                 </Suspense>
               }
             />
+          </Route>
+
+          <Route element={<ProtectedRoute requiredPermission="hr_calendar" />}>
             <Route
               path="hr-calendar"
               element={
@@ -273,6 +272,9 @@ export default function App() {
                 </Suspense>
               }
             />
+          </Route>
+
+          <Route element={<ProtectedRoute requiredPermission="email_center" />}>
             <Route
               path="email-center"
               element={
@@ -301,19 +303,8 @@ export default function App() {
           {/* Admin Section                             */}
           {/* ✅ requireAll={false} - Only needs ONE admin permission */}
           {/* ========================================= */}
-          <Route
-            element={
-              <ProtectedRoute
-                requiredPermissions={[
-                  "workspaces",
-                  "user_management",
-                  "role_management",
-                  "activity_logs",
-                ]}
-                requireAll={false}
-              />
-            }
-          >
+
+          <Route element={<ProtectedRoute requiredPermission="workspaces" />}>
             <Route
               path="workspaces"
               element={
@@ -322,6 +313,11 @@ export default function App() {
                 </Suspense>
               }
             />
+          </Route>
+
+          <Route
+            element={<ProtectedRoute requiredPermission="user_management" />}
+          >
             <Route
               path="user-management"
               element={
@@ -330,6 +326,11 @@ export default function App() {
                 </Suspense>
               }
             />
+          </Route>
+
+          <Route
+            element={<ProtectedRoute requiredPermission="role_management" />}
+          >
             <Route
               path="role-management"
               element={
@@ -338,7 +339,11 @@ export default function App() {
                 </Suspense>
               }
             />
+          </Route>
 
+          <Route
+            element={<ProtectedRoute requiredPermission="activity_logs" />}
+          >
             <Route
               path="activity"
               element={

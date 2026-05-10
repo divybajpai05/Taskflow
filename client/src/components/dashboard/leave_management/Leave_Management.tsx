@@ -47,6 +47,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import apiClient from "@/api/client";
 import { toast } from "sonner";
+import ViewLeaveDetailsDialog from "./ViewLeaveDetailsDialog";
 
 interface LeaveRequest {
   id: string;
@@ -95,7 +96,13 @@ const LeaveManagement: React.FC = () => {
     rejected: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<{
+    id: string | null;
+    type: "approve" | "reject" | null;
+  }>({
+    id: null,
+    type: null,
+  });
 
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -109,6 +116,11 @@ const LeaveManagement: React.FC = () => {
   const [typeIsPaid, setTypeIsPaid] = useState(true);
   const [typeDefaultDays, setTypeDefaultDays] = useState(0);
   const [typeRequiresApproval, setTypeRequiresApproval] = useState(true);
+
+  //view leave detail state
+  const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
+
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
   // Predefined colors
   const colorOptions = [
@@ -263,7 +275,10 @@ const LeaveManagement: React.FC = () => {
 
   // Approve leave
   const handleApprove = async (id: string) => {
-    setIsSubmitting(id);
+    setActionLoading({
+      id,
+      type: "approve",
+    });
     try {
       await apiClient.put(`/leaves/${id}`, { status: "APPROVED" });
       toast.success("Leave request approved!");
@@ -272,13 +287,19 @@ const LeaveManagement: React.FC = () => {
     } catch (error: any) {
       toast.error(error.response?.data?.error || "Failed to approve");
     } finally {
-      setIsSubmitting(null);
+      setActionLoading({
+        id: null,
+        type: null,
+      });
     }
   };
 
   // Reject leave
   const handleReject = async (id: string) => {
-    setIsSubmitting(id);
+    setActionLoading({
+      id,
+      type: "reject",
+    });
     try {
       await apiClient.put(`/leaves/${id}`, { status: "REJECTED" });
       toast.success("Leave request rejected!");
@@ -287,8 +308,16 @@ const LeaveManagement: React.FC = () => {
     } catch (error: any) {
       toast.error(error.response?.data?.error || "Failed to reject");
     } finally {
-      setIsSubmitting(null);
+      setActionLoading({
+        id: null,
+        type: null,
+      });
     }
+  };
+
+  const handleViewDetails = (leave: LeaveRequest) => {
+    setSelectedLeave(leave);
+    setIsViewDialogOpen(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -588,10 +617,11 @@ const LeaveManagement: React.FC = () => {
                                 <TooltipTrigger asChild>
                                   <button
                                     onClick={() => handleApprove(req.id)}
-                                    disabled={isSubmitting === req.id}
+                                    disabled={actionLoading.id === req.id}
                                     className="cursor-pointer p-3 text-emerald-600 hover:bg-emerald-50 rounded-2xl transition-colors"
                                   >
-                                    {isSubmitting === req.id ? (
+                                    {actionLoading.id === req.id &&
+                                    actionLoading.type === "approve" ? (
                                       <Loader2 className="w-5 h-5 animate-spin" />
                                     ) : (
                                       <CheckCircle className="w-5 h-5" />
@@ -606,10 +636,11 @@ const LeaveManagement: React.FC = () => {
                                 <TooltipTrigger asChild>
                                   <button
                                     onClick={() => handleReject(req.id)}
-                                    disabled={isSubmitting === req.id}
+                                    disabled={actionLoading.id === req.id}
                                     className="cursor-pointer p-3 text-red-600 hover:bg-red-50 rounded-2xl transition-colors"
                                   >
-                                    {isSubmitting === req.id ? (
+                                    {actionLoading.id === req.id &&
+                                    actionLoading.type === "reject" ? (
                                       <Loader2 className="w-5 h-5 animate-spin" />
                                     ) : (
                                       <XCircle className="w-5 h-5" />
@@ -624,7 +655,10 @@ const LeaveManagement: React.FC = () => {
                           )}
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <button className="cursor-pointer p-3 text-blue-600 hover:bg-gray-100 rounded-2xl transition-colors">
+                              <button
+                                onClick={() => handleViewDetails(req)}
+                                className="cursor-pointer p-3 text-blue-600 hover:bg-gray-100 rounded-2xl transition-colors"
+                              >
                                 <Eye className="w-5 h-5" />
                               </button>
                             </TooltipTrigger>
@@ -778,6 +812,12 @@ const LeaveManagement: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <ViewLeaveDetailsDialog
+          open={isViewDialogOpen}
+          onOpenChange={setIsViewDialogOpen}
+          leave={selectedLeave}
+        />
       </div>
     </TooltipProvider>
   );

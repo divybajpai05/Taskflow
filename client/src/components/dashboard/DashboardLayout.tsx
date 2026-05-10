@@ -2,14 +2,15 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { allDashboardRoutes, AppSidebar } from "./sidebar/AppSidebar";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { Bell } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "../ui/button";
 
 export default function DashboardLayout() {
   const location = useLocation();
 
-  const notification = true;
+  const notification = false;
 
   const getPageTitle = (pathname: string) => {
-    
     const cleanPath = pathname.replace(/\/$/, "");
 
     const match = allDashboardRoutes.find((route) => {
@@ -33,12 +34,12 @@ export default function DashboardLayout() {
               </h1>
             </div>
             <div className="relative inline-flex items-center cursor-pointer">
-              <Link to={"/dashboard/notifications"}>
+              <Button className="cursor-pointer" variant={"ghost"} onClick={() => toast.message("Feature coming soon")}>
                 <Bell size={22} className="text-gray-600 " />
-              </Link>
+              </Button>
               {notification && (
                 <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white">
-                  21
+                  0
                 </span>
               )}
             </div>
