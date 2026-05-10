@@ -134,7 +134,9 @@ const EmployeeLists: React.FC<EmployeeListsProps> = ({
                           ? "On Leave"
                           : emp.status === "halfDay"
                             ? "Half Day"
-                            : emp.status}
+                            : emp.status === "notMarked"
+                              ? "Not Marked"
+                              : emp.status}
                       </Badge>
                     </TableCell>
                   </TableRow>

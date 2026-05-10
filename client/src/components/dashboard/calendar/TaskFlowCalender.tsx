@@ -250,7 +250,7 @@ export default function TaskFlowCalendar({
           </div>
           <div>
             <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-              Attendance
+              Attendance (background)
             </h4>
             <div className="space-y-2">
               {Object.entries(attendanceColors).map(([s, c]) => (
