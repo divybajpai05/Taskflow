@@ -12,7 +12,7 @@ pnpm-lock.yaml
 .env.production.local
 
 # Build outputs
-dist/
+# dist/
 build/
 out/
 *.tsbuildinfo
