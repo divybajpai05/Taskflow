@@ -1,0 +1,6 @@
+deployment:
+  tasks:
+    - export DEPLOYPATH_FRONTEND=/home/your_user/public_html/frontend
+    - export DEPLOYPATH_BACKEND=/home/your_user/public_html/backend
+    - /bin/cp -R frontend/dist/* $DEPLOYPATH_FRONTEND
+    - /bin/cp -R backend/dist/* $DEPLOYPATH_BACKEND
